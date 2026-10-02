@@ -20,7 +20,7 @@ struct QuickPanel: View {
         .padding(18)
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .glassEffect(.clear, in: .rect(cornerRadius: 22))
     }
 
     private var controls: some View {

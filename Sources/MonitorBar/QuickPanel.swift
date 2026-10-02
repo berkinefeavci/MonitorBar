@@ -432,6 +432,11 @@ private struct ColorSlider: View {
                     .accessibilityLabel(label)
             }
             .frame(height: 22)
+            .contentShape(Rectangle())
+            .highPriorityGesture(DragGesture(minimumDistance: 0).onChanged { gesture in
+                guard enabled, trackWidth > 0 else { return }
+                value = min(100, max(0, (gesture.location.x - 10) / trackWidth * 100))
+            })
             .opacity(enabled ? 1 : 0.45)
         }
         .frame(height: 22)

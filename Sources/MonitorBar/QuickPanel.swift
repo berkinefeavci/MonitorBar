@@ -72,21 +72,11 @@ struct QuickPanel: View {
             }
             .padding(.top, 25)
 
-            HStack(spacing: 10) {
-                Image(systemName: "sun.min.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Slider(value: Binding(
-                    get: { model.brightnessValue },
-                    set: { model.setBrightness($0) }
-                ), in: 0...100)
-                .tint(.blue)
-                .disabled(!model.canChangeBrightness)
-                .accessibilityLabel("Monitörün donanım parlaklığı")
-                Image(systemName: "sun.max.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-            }
+            brightnessSlider(
+                value: Binding(get: { model.brightnessValue }, set: { model.setBrightness($0) }),
+                enabled: model.canChangeBrightness,
+                label: "Monitörün donanım parlaklığı"
+            )
             .padding(.top, 8)
 
             HStack(spacing: 7) {
@@ -107,18 +97,25 @@ struct QuickPanel: View {
                 }
                 .font(.system(size: 12, weight: .medium))
                 .padding(.top, 13)
-                Slider(value: Binding(
-                    get: { model.builtInBrightnessValue ?? 0 },
-                    set: { model.setBuiltInBrightness($0) }
-                ), in: 0...100)
-                .tint(.blue)
-                .disabled(!model.canChangeBuiltInBrightness)
-                .accessibilityLabel("Yerleşik ekran parlaklığı")
+                brightnessSlider(
+                    value: Binding(
+                        get: { model.builtInBrightnessValue ?? 0 },
+                        set: { model.setBuiltInBrightness($0) }
+                    ),
+                    enabled: model.canChangeBuiltInBrightness,
+                    label: "Yerleşik ekran parlaklığı"
+                )
                 .padding(.top, 6)
-                Toggle("İki ekranı birlikte ayarla", isOn: Binding(
-                    get: { model.linkBrightness },
-                    set: { model.setLinkBrightness($0) }
-                ))
+                HStack {
+                    Text("İki ekranı birlikte ayarla")
+                    Spacer()
+                    Toggle("İki ekranı birlikte ayarla", isOn: Binding(
+                        get: { model.linkBrightness },
+                        set: { model.setLinkBrightness($0) }
+                    ))
+                    .labelsHidden()
+                    .accessibilityLabel("İki ekranı birlikte ayarla")
+                }
                 .font(.system(size: 12))
                 .toggleStyle(.switch)
                 .disabled(!model.canChangeBrightness || !model.canChangeBuiltInBrightness)
@@ -180,6 +177,22 @@ struct QuickPanel: View {
             .accessibilityLabel("Parlaklık \(title)")
     }
 
+    private func brightnessSlider(value: Binding<Double>, enabled: Bool, label: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sun.min.fill")
+                .font(.system(size: 11))
+                .frame(width: 16)
+            Slider(value: value, in: 0...100)
+                .tint(.blue)
+                .disabled(!enabled)
+                .accessibilityLabel(label)
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 16))
+                .frame(width: 16)
+        }
+        .foregroundStyle(.secondary)
+    }
+
     private var secondaryControls: some View {
         VStack(alignment: .leading, spacing: 10) {
             if model.canChangeContrast {
@@ -191,12 +204,21 @@ struct QuickPanel: View {
                         .foregroundStyle(.secondary)
                 }
                 .font(.system(size: 12, weight: .medium))
-                Slider(value: Binding(
-                    get: { model.contrastValue },
-                    set: { model.setContrast($0) }
-                ), in: 0...100)
-                .tint(.blue)
-                .accessibilityLabel("Monitör kontrastı")
+                HStack(spacing: 10) {
+                    Image(systemName: "circle.lefthalf.filled")
+                        .font(.system(size: 11))
+                        .frame(width: 16)
+                    Slider(value: Binding(
+                        get: { model.contrastValue },
+                        set: { model.setContrast($0) }
+                    ), in: 0...100)
+                    .tint(.blue)
+                    .accessibilityLabel("Monitör kontrastı")
+                    Image(systemName: "circle.righthalf.filled")
+                        .font(.system(size: 16))
+                        .frame(width: 16)
+                }
+                .foregroundStyle(.secondary)
             }
             HStack {
                 Text("Giriş")
@@ -208,10 +230,16 @@ struct QuickPanel: View {
             .padding(.top, model.canChangeContrast ? 6 : 0)
 
             Divider().padding(.vertical, 5)
-            Toggle("Saatle parlaklık", isOn: Binding(
-                get: { model.scheduleEnabled },
-                set: { model.setScheduleEnabled($0) }
-            ))
+            HStack {
+                Text("Saatle parlaklık")
+                Spacer()
+                Toggle("Saatle parlaklık", isOn: Binding(
+                    get: { model.scheduleEnabled },
+                    set: { model.setScheduleEnabled($0) }
+                ))
+                .labelsHidden()
+                .accessibilityLabel("Saatle parlaklık")
+            }
             .toggleStyle(.switch)
             .font(.system(size: 12, weight: .medium))
             if model.scheduleEnabled {

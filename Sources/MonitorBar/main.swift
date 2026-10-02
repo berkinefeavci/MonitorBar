@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 if CommandLine.arguments.contains("--probe") {
@@ -12,4 +13,10 @@ if CommandLine.arguments.contains("--probe") {
         exit(0)
     }
     RunLoop.main.run()
+} else {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let delegate = MonitorBarAppDelegate()
+    app.delegate = delegate
+    app.run()
 }

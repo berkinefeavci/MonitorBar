@@ -25,7 +25,7 @@ struct QuickPanel: View {
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
         .glassEffect(.clear, in: .rect(cornerRadius: 22))
-        .background(.black.opacity(0.94), in: RoundedRectangle(cornerRadius: 22))
+        .background(.black.opacity(0.80), in: RoundedRectangle(cornerRadius: 22))
     }
 
     private var controls: some View {
@@ -299,6 +299,20 @@ struct QuickPanel: View {
                 Text("Seçili monitör ve yerleşik ekrana uygulanır.")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 11))
+            }
+            if let nightShiftWarm = model.nightShiftWarm {
+                HStack {
+                    Label("Sıcak ışık şimdi", systemImage: "moon.stars.fill")
+                    Spacer()
+                    Toggle("Sıcak ışık şimdi", isOn: Binding(
+                        get: { model.nightShiftWarm ?? nightShiftWarm },
+                        set: { model.setNightShiftWarm($0) }
+                    ))
+                    .labelsHidden()
+                    .accessibilityLabel("Sıcak ışık şimdi")
+                }
+                .toggleStyle(.switch)
+                .font(.system(size: 12, weight: .medium))
             }
             Button("Night Shift ayarları…") {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.Displays-Settings.extension") {

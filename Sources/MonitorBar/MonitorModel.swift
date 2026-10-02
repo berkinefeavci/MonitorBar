@@ -10,6 +10,7 @@ import DDCBridge
     @Published private(set) var builtInDisplay: DisplayIdentity?
     @Published private(set) var builtInBrightnessValue: Double?
     @Published private(set) var keyboardBrightnessValue: Double?
+    @Published private(set) var nightShiftWarm: Bool?
     @Published private(set) var linkBrightness = UserDefaults.standard.bool(forKey: "linkBrightness")
     @Published private(set) var scheduleEnabled = UserDefaults.standard.bool(forKey: "scheduleEnabled")
     @Published private(set) var nightStart = UserDefaults.standard.object(forKey: "nightStart") as? Int ?? 22 * 60
@@ -50,6 +51,7 @@ import DDCBridge
         }
         discovery.start()
         pollKeyboardBrightness()
+        pollNightShift()
         scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyScheduleIfNeeded() }
         }
@@ -152,6 +154,16 @@ import DDCBridge
             }
             self.keyboardWritePending = false
         }
+    }
+
+    func setNightShiftWarm(_ warm: Bool) {
+        guard nightShiftWarm != nil else { return }
+        if !MBSetNightShiftWarm(warm) {
+            errorMessage = "Night Shift değişikliği doğrulanmadı"
+        } else {
+            errorMessage = nil
+        }
+        pollNightShift()
     }
 
     private func setExternalBrightness(_ value: Double) {
@@ -300,6 +312,7 @@ import DDCBridge
 
     private func pollBuiltInBrightness() {
         pollKeyboardBrightness()
+        pollNightShift()
         guard let display = builtInDisplay else { return }
         var raw: Float = 0
         guard MBReadBuiltInBrightness(display.id, &raw) else { return }
@@ -321,5 +334,11 @@ import DDCBridge
         guard !keyboardWritePending else { return }
         var raw: Float = 0
         keyboardBrightnessValue = MBReadKeyboardBrightness(&raw) ? Double(raw) * 100 : nil
+    }
+
+    private func pollNightShift() {
+        var active = false, enabled = false
+        var mode: Int32 = 0
+        nightShiftWarm = MBReadNightShift(&active, &enabled, &mode) ? active && enabled : nil
     }
 }

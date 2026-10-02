@@ -5,6 +5,7 @@
 #import <math.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <string.h>
 #import <unistd.h>
 
 typedef CFTypeRef MBAVService;
@@ -95,6 +96,51 @@ bool MBWriteKeyboardBrightness(float value) {
         !class_getInstanceMethod(object_getClass(client), sel_registerName("setBrightness:forKeyboard:"))) return false;
     ((void (*)(id, SEL, float, uint64_t))objc_msgSend)(client, sel_registerName("setBrightness:forKeyboard:"), value, keyboardID);
     return true;
+}
+
+static id MBNightShiftClient(void) {
+    static id client;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        if (!dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_NOW)) return;
+        Class cls = objc_getClass("CBBlueLightClient");
+        if (!cls) return;
+        id allocated = ((id (*)(id, SEL))objc_msgSend)(cls, sel_registerName("alloc"));
+        client = ((id (*)(id, SEL))objc_msgSend)(allocated, sel_registerName("init"));
+    });
+    return client;
+}
+
+bool MBReadNightShift(bool *active, bool *enabled, int32_t *mode) {
+    id client = MBNightShiftClient();
+    SEL selector = sel_registerName("getBlueLightStatus:");
+    if (!active || !enabled || !mode || !client ||
+        !class_getInstanceMethod(object_getClass(client), selector)) return false;
+    uint8_t status[64] = {0};
+    if (!((BOOL (*)(id, SEL, void *))objc_msgSend)(client, selector, status)) return false;
+    int32_t rawMode;
+    memcpy(&rawMode, status + 4, sizeof(rawMode));
+    if (status[0] > 1 || status[1] > 1 || rawMode < 0 || rawMode > 2) return false;
+    *active = status[0] != 0;
+    *enabled = status[1] != 0;
+    *mode = rawMode;
+    return true;
+}
+
+bool MBSetNightShiftWarm(bool warm) {
+    id client = MBNightShiftClient();
+    SEL setActive = sel_registerName("setActive:");
+    SEL setEnabled = sel_registerName("setEnabled:");
+    bool active, enabled;
+    int32_t mode;
+    if (!client || !class_getInstanceMethod(object_getClass(client), setActive) ||
+        !class_getInstanceMethod(object_getClass(client), setEnabled) ||
+        !MBReadNightShift(&active, &enabled, &mode)) return false;
+    if (warm && !enabled && !((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setEnabled, YES)) return false;
+    if (!((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setActive, warm ? YES : NO)) return false;
+    if (!warm && mode == 0 && enabled &&
+        !((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setEnabled, NO)) return false;
+    return MBReadNightShift(&active, &enabled, &mode) && (active && enabled) == warm;
 }
 
 typedef struct {

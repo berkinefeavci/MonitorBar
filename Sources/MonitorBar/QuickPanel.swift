@@ -24,8 +24,8 @@ struct QuickPanel: View {
         .padding(18)
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
-        .glassEffect(.clear, in: .rect(cornerRadius: 22))
-        .background(.black.opacity(0.80), in: RoundedRectangle(cornerRadius: 22))
+        .background(.black.opacity(0.52), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.12)))
     }
 
     private var controls: some View {

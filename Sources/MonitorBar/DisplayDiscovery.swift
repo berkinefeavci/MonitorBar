@@ -31,6 +31,20 @@ final class DisplayDiscovery: @unchecked Sendable {
 
     private func publish() { onChange?(Self.externalDisplays()) }
 
+    static func builtInDisplay() -> DisplayIdentity? {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 32)
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count) == .success,
+              let id = ids.prefix(Int(count)).first(where: { CGDisplayIsBuiltin($0) != 0 }) else { return nil }
+        let name = NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
+        }?.localizedName ?? "Yerleşik ekran"
+        return DisplayIdentity(id: id, name: name,
+                               vendor: CGDisplayVendorNumber(id),
+                               product: CGDisplayModelNumber(id),
+                               serial: CGDisplaySerialNumber(id))
+    }
+
     static func externalDisplays() -> [DisplayIdentity] {
         var ids = [CGDirectDisplayID](repeating: 0, count: 32)
         var count: UInt32 = 0

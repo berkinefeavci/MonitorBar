@@ -1,11 +1,20 @@
 import AppKit
 import Combine
+import DDCBridge
 
 @MainActor final class MonitorModel: ObservableObject {
     @Published private(set) var displays: [DisplayIdentity] = []
     @Published private(set) var probes: [DDCProbe] = []
     @Published private(set) var selectedID: UInt32?
     @Published private(set) var brightnessValue = 0.0
+    @Published private(set) var builtInDisplay: DisplayIdentity?
+    @Published private(set) var builtInBrightnessValue: Double?
+    @Published private(set) var linkBrightness = UserDefaults.standard.bool(forKey: "linkBrightness")
+    @Published private(set) var scheduleEnabled = UserDefaults.standard.bool(forKey: "scheduleEnabled")
+    @Published private(set) var nightStart = UserDefaults.standard.object(forKey: "nightStart") as? Int ?? 22 * 60
+    @Published private(set) var nightEnd = UserDefaults.standard.object(forKey: "nightEnd") as? Int ?? 7 * 60
+    @Published private(set) var nightBrightness = UserDefaults.standard.object(forKey: "nightBrightness") as? Double ?? 35
+    @Published private(set) var dayBrightness = UserDefaults.standard.object(forKey: "dayBrightness") as? Double ?? 70
     @Published private(set) var contrastValue = 0.0
     @Published private(set) var isLoading = false
     @Published private(set) var isWriting = false
@@ -15,24 +24,35 @@ import Combine
     private let discovery = DisplayDiscovery()
     private let brightnessScheduler = WriteScheduler()
     private let contrastScheduler = WriteScheduler()
+    private let builtInScheduler = WriteScheduler()
     private var generation = 0
     private var brightnessRequest = 0
     private var contrastRequest = 0
+    private var builtInRequest = 0
+    private var scheduleTimer: Timer?
+    private var lastAppliedNight: Bool?
 
     var selectedProbe: DDCProbe? { probes.first { $0.display.id == selectedID } }
     var canChangeBrightness: Bool { selectedProbe?.brightness != nil && !isLoading }
     var canChangeContrast: Bool { selectedProbe?.contrast != nil && !isLoading }
+    var canChangeBuiltInBrightness: Bool { builtInDisplay != nil && builtInBrightnessValue != nil }
 
     func start() {
         discovery.onChange = { [weak self] displays in
             MainActor.assumeIsolated { self?.updateDisplays(displays) }
         }
         discovery.start()
+        scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyScheduleIfNeeded() }
+        }
     }
 
     func stop() {
         brightnessScheduler.cancel()
         contrastScheduler.cancel()
+        builtInScheduler.cancel()
+        scheduleTimer?.invalidate()
+        scheduleTimer = nil
         discovery.stop()
     }
 
@@ -46,7 +66,55 @@ import Combine
 
     func refresh() { updateDisplays(DisplayDiscovery.externalDisplays()) }
 
+    func setLinkBrightness(_ enabled: Bool) {
+        linkBrightness = enabled
+        UserDefaults.standard.set(enabled, forKey: "linkBrightness")
+    }
+
+    func setScheduleEnabled(_ enabled: Bool) {
+        scheduleEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "scheduleEnabled")
+        lastAppliedNight = nil
+        applyScheduleIfNeeded()
+    }
+
+    func setScheduleTime(_ minutes: Int, night: Bool) {
+        let value = min(1439, max(0, minutes))
+        if night {
+            nightStart = value
+            UserDefaults.standard.set(value, forKey: "nightStart")
+        } else {
+            nightEnd = value
+            UserDefaults.standard.set(value, forKey: "nightEnd")
+        }
+        lastAppliedNight = nil
+        applyScheduleIfNeeded()
+    }
+
+    func setScheduleBrightness(_ value: Double, night: Bool) {
+        let level = min(100, max(0, value))
+        if night {
+            nightBrightness = level
+            UserDefaults.standard.set(level, forKey: "nightBrightness")
+        } else {
+            dayBrightness = level
+            UserDefaults.standard.set(level, forKey: "dayBrightness")
+        }
+        lastAppliedNight = nil
+        applyScheduleIfNeeded()
+    }
+
     func setBrightness(_ value: Double) {
+        setExternalBrightness(value)
+        if linkBrightness { setBuiltInBrightnessOnly(value) }
+    }
+
+    func setBuiltInBrightness(_ value: Double) {
+        setBuiltInBrightnessOnly(value)
+        if linkBrightness { setExternalBrightness(value) }
+    }
+
+    private func setExternalBrightness(_ value: Double) {
         guard let probe = selectedProbe, let levels = probe.brightness,
               let raw = rawLevel(percent: value, maximum: levels.maximum) else { return }
         brightnessValue = value
@@ -57,6 +125,28 @@ import Combine
         let request = brightnessRequest
         brightnessScheduler.schedule(after: 0.15) { [weak self] in
             self?.send(display: probe.display, vcp: 0x10, raw: raw, token: token, request: request)
+        }
+    }
+
+    private func setBuiltInBrightnessOnly(_ value: Double) {
+        guard let display = builtInDisplay, builtInBrightnessValue != nil else { return }
+        let requested = min(100, max(0, value))
+        builtInBrightnessValue = requested
+        builtInRequest += 1
+        let request = builtInRequest
+        builtInScheduler.schedule(after: 0.15) { [weak self] in
+            guard let self, self.builtInDisplay?.id == display.id, self.builtInRequest == request else { return }
+            let target = Float(requested / 100)
+            var readback: Float = 0
+            if MBWriteBuiltInBrightness(display.id, target), MBReadBuiltInBrightness(display.id, &readback) {
+                self.builtInBrightnessValue = Double(readback) * 100
+                if abs(Double(readback) - Double(target)) > 0.02 {
+                    self.errorMessage = "Yerleşik ekran değişikliği doğrulanmadı"
+                }
+            } else {
+                self.builtInBrightnessValue = nil
+                self.errorMessage = "Yerleşik ekran parlaklığı kullanılamıyor"
+            }
         }
     }
 
@@ -76,8 +166,17 @@ import Combine
 
     private func updateDisplays(_ newDisplays: [DisplayIdentity]) {
         generation += 1
+        lastAppliedNight = nil
         brightnessScheduler.cancel()
         contrastScheduler.cancel()
+        builtInScheduler.cancel()
+        builtInDisplay = DisplayDiscovery.builtInDisplay()
+        if let builtInDisplay {
+            var level: Float = 0
+            builtInBrightnessValue = MBReadBuiltInBrightness(builtInDisplay.id, &level) ? Double(level) * 100 : nil
+        } else {
+            builtInBrightnessValue = nil
+        }
         displays = newDisplays
         onPresenceChange?(!newDisplays.isEmpty)
         if newDisplays.isEmpty {
@@ -85,6 +184,7 @@ import Combine
             probes = []
             isLoading = false
             isWriting = false
+            applyScheduleIfNeeded()
             return
         }
         if selectedID == nil || !newDisplays.contains(where: { $0.id == selectedID }) {
@@ -102,6 +202,7 @@ import Combine
                 self.isLoading = false
                 self.isWriting = false
                 self.syncValues()
+                self.applyScheduleIfNeeded()
             }
         }
     }
@@ -142,5 +243,15 @@ import Combine
     private func syncValues() {
         brightnessValue = selectedProbe?.brightness?.percent ?? 0
         contrastValue = selectedProbe?.contrast?.percent ?? 0
+    }
+
+    private func applyScheduleIfNeeded() {
+        guard scheduleEnabled, !isLoading else { return }
+        let isNight = BrightnessSchedule(nightStart: nightStart, nightEnd: nightEnd).isNight(at: Date())
+        guard lastAppliedNight != isNight else { return }
+        lastAppliedNight = isNight
+        let level = isNight ? nightBrightness : dayBrightness
+        setExternalBrightness(level)
+        setBuiltInBrightnessOnly(level)
     }
 }

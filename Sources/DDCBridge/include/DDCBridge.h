@@ -12,3 +12,6 @@ int32_t MBServiceCount(void);
 bool MBServiceIdentity(int32_t index, uint32_t *vendor, uint32_t *product, uint32_t *serial);
 bool MBReadVCP(int32_t index, uint8_t code, uint16_t *current, uint16_t *maximum);
 bool MBWriteVCP(int32_t index, uint8_t code, uint16_t value);
+
+bool MBReadBuiltInBrightness(uint32_t displayID, float *value);
+bool MBWriteBuiltInBrightness(uint32_t displayID, float value);

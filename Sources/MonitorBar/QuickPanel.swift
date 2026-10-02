@@ -20,7 +20,6 @@ struct QuickPanel: View {
         .padding(18)
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
@@ -96,6 +95,35 @@ struct QuickPanel: View {
                 preset("Tam 100%", value: 100)
             }
             .padding(.top, 10)
+
+            if let builtInDisplay = model.builtInDisplay {
+                Divider().padding(.top, 16)
+                HStack {
+                    Label(builtInDisplay.name, systemImage: "laptopcomputer")
+                        .lineLimit(1)
+                    Spacer()
+                    Text(model.builtInBrightnessValue.map { "\(Int($0.rounded()))%" } ?? "—")
+                        .monospacedDigit()
+                }
+                .font(.system(size: 12, weight: .medium))
+                .padding(.top, 13)
+                Slider(value: Binding(
+                    get: { model.builtInBrightnessValue ?? 0 },
+                    set: { model.setBuiltInBrightness($0) }
+                ), in: 0...100)
+                .tint(.blue)
+                .disabled(!model.canChangeBuiltInBrightness)
+                .accessibilityLabel("Yerleşik ekran parlaklığı")
+                .padding(.top, 6)
+                Toggle("İki ekranı birlikte ayarla", isOn: Binding(
+                    get: { model.linkBrightness },
+                    set: { model.setLinkBrightness($0) }
+                ))
+                .font(.system(size: 12))
+                .toggleStyle(.switch)
+                .disabled(!model.canChangeBrightness || !model.canChangeBuiltInBrightness)
+                .padding(.top, 9)
+            }
 
             Divider().padding(.vertical, 17)
 
@@ -174,7 +202,53 @@ struct QuickPanel: View {
             }
             .font(.system(size: 12, weight: .medium))
             .padding(.top, model.canChangeContrast ? 6 : 0)
+
+            Divider().padding(.vertical, 5)
+            Toggle("Saatle parlaklık", isOn: Binding(
+                get: { model.scheduleEnabled },
+                set: { model.setScheduleEnabled($0) }
+            ))
+            .toggleStyle(.switch)
+            .font(.system(size: 12, weight: .medium))
+            if model.scheduleEnabled {
+                DatePicker("Gece başlar", selection: scheduleTime(night: true), displayedComponents: .hourAndMinute)
+                Stepper("Gece \(Int(model.nightBrightness))%", value: Binding(
+                    get: { model.nightBrightness },
+                    set: { model.setScheduleBrightness($0, night: true) }
+                ), in: 0...100, step: 5)
+                DatePicker("Gündüz başlar", selection: scheduleTime(night: false), displayedComponents: .hourAndMinute)
+                Stepper("Gündüz \(Int(model.dayBrightness))%", value: Binding(
+                    get: { model.dayBrightness },
+                    set: { model.setScheduleBrightness($0, night: false) }
+                ), in: 0...100, step: 5)
+                Text("Seçili monitör ve yerleşik ekrana uygulanır.")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+            }
+            Button("Night Shift ayarları…") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.Displays-Settings.extension") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 12))
+            .foregroundStyle(.blue)
         }
+    }
+
+    private func scheduleTime(night: Bool) -> Binding<Date> {
+        Binding(
+            get: {
+                let minutes = night ? model.nightStart : model.nightEnd
+                return Calendar.current.date(byAdding: .minute, value: minutes,
+                                             to: Calendar.current.startOfDay(for: Date())) ?? Date()
+            },
+            set: {
+                let hour = Calendar.current.component(.hour, from: $0)
+                let minute = Calendar.current.component(.minute, from: $0)
+                model.setScheduleTime(hour * 60 + minute, night: night)
+            }
+        )
     }
 
     private var diagnostics: some View {

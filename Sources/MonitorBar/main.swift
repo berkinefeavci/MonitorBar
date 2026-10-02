@@ -1,8 +1,14 @@
 import AppKit
+import DDCBridge
 import Foundation
 import SwiftUI
 
 if CommandLine.arguments.contains("--probe") {
+    if let builtIn = DisplayDiscovery.builtInDisplay() {
+        var level: Float = 0
+        let value = MBReadBuiltInBrightness(builtIn.id, &level) ? "\(Int((level * 100).rounded()))%" : "unavailable"
+        print("Built-in display: \(builtIn.name) [\(builtIn.id)]: brightness \(value)")
+    }
     let displays = DisplayDiscovery.externalDisplays()
     print("External displays: \(displays.count)")
     DDCClient.shared.probe(displays: displays) { results in
@@ -25,6 +31,8 @@ if CommandLine.arguments.contains("--probe") {
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 386, height: 430),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "MonitorBar Preview"
+    window.isOpaque = false
+    window.backgroundColor = .clear
     window.contentViewController = NSHostingController(rootView: QuickPanel(model: model))
     window.center()
     window.makeKeyAndOrderFront(nil)

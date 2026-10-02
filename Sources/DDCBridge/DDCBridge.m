@@ -14,6 +14,38 @@ static MBCreateService createService;
 static MBCopyEDID copyEDID;
 static MBI2CRead readI2C;
 static MBI2CWrite writeI2C;
+typedef int (*MBDisplayBrightnessGet)(uint32_t, float *);
+typedef int (*MBDisplayBrightnessSet)(uint32_t, float);
+typedef void (*MBDisplayBrightnessChanged)(uint32_t, double);
+static MBDisplayBrightnessGet displayBrightnessGet;
+static MBDisplayBrightnessSet displayBrightnessSet;
+static MBDisplayBrightnessChanged displayBrightnessChanged;
+
+static bool MBLoadDisplayServices(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        void *library = dlopen("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices", RTLD_NOW);
+        if (!library) return;
+        displayBrightnessGet = (MBDisplayBrightnessGet)dlsym(library, "DisplayServicesGetBrightness");
+        displayBrightnessSet = (MBDisplayBrightnessSet)dlsym(library, "DisplayServicesSetBrightness");
+        displayBrightnessChanged = (MBDisplayBrightnessChanged)dlsym(library, "DisplayServicesBrightnessChanged");
+    });
+    return displayBrightnessGet && displayBrightnessSet;
+}
+
+bool MBReadBuiltInBrightness(uint32_t displayID, float *value) {
+    if (!value || !MBLoadDisplayServices()) return false;
+    float level = -1;
+    if (displayBrightnessGet(displayID, &level) != 0 || level < 0 || level > 1) return false;
+    *value = level;
+    return true;
+}
+
+bool MBWriteBuiltInBrightness(uint32_t displayID, float value) {
+    if (!MBLoadDisplayServices() || value < 0 || value > 1 || displayBrightnessSet(displayID, value) != 0) return false;
+    if (displayBrightnessChanged) displayBrightnessChanged(displayID, value);
+    return true;
+}
 
 typedef struct {
     MBAVService service;

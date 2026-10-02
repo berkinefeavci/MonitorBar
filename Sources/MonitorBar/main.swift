@@ -7,7 +7,7 @@ if CommandLine.arguments.contains("--probe") {
     var nightActive = false, nightEnabled = false
     var nightMode: Int32 = 0
     let nightValue = MBReadNightShift(&nightActive, &nightEnabled, &nightMode)
-        ? "\(nightActive && nightEnabled ? "warm" : "off") (mode \(nightMode))" : "unavailable"
+        ? "\(nightActive && nightEnabled ? "warm" : "off") (mode \(nightMode), enabled \(nightEnabled))" : "unavailable"
     print("Night Shift: \(nightValue)")
     var keyboardLevel: Float = 0
     let keyboardValue = MBReadKeyboardBrightness(&keyboardLevel) ? "\(Int((keyboardLevel * 100).rounded()))%" : "unavailable"

@@ -1,6 +1,6 @@
 # MonitorBar
 
-The Quick Panel uses translucent dark glass. “Sıcak ışık şimdi” controls macOS Night Shift while preserving its system schedule; “Night Shift ayarları…” opens the system warmth and schedule settings. On this Mac, the toggle was read as warm after switching on and off after switching off; sunset schedule mode 1 remained unchanged.
+The Quick Panel uses translucent dark glass. “Sıcak ışık şimdi” controls macOS Night Shift while preserving its system schedule; “Night Shift ayarları…” opens the system warmth and schedule settings. On this Mac, the toggle was read as warm after switching on and off after switching off; sunset schedule mode 1 and its previously disabled state were restored.
 
 A compact macOS menu bar control for external-display hardware brightness. This is a local, personal build. It uses DDC/CI commands, not a dark overlay or gamma adjustment.
 

@@ -18,4 +18,4 @@ bool MBWriteBuiltInBrightness(uint32_t displayID, float value);
 bool MBReadKeyboardBrightness(float *value);
 bool MBWriteKeyboardBrightness(float value);
 bool MBReadNightShift(bool *active, bool *enabled, int32_t *mode);
-bool MBSetNightShiftWarm(bool warm);
+bool MBSetNightShiftWarm(bool warm, bool enabledWhenOff);

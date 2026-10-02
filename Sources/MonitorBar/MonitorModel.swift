@@ -34,6 +34,7 @@ import DDCBridge
     private var builtInRequest = 0
     private var keyboardRequest = 0
     private var keyboardWritePending = false
+    private var nightShiftEnabledBeforeOverride: Bool?
     private var scheduleTimer: Timer?
     private var builtInPollTimer: Timer?
     private var lastMirroredBuiltIn: Double?
@@ -158,10 +159,16 @@ import DDCBridge
 
     func setNightShiftWarm(_ warm: Bool) {
         guard nightShiftWarm != nil else { return }
-        if !MBSetNightShiftWarm(warm) {
+        var active = false, enabled = false
+        var mode: Int32 = 0
+        guard MBReadNightShift(&active, &enabled, &mode) else { return }
+        if warm { nightShiftEnabledBeforeOverride = enabled }
+        let enabledWhenOff = nightShiftEnabledBeforeOverride ?? (mode != 0 && enabled)
+        if !MBSetNightShiftWarm(warm, enabledWhenOff) {
             errorMessage = "Night Shift değişikliği doğrulanmadı"
         } else {
             errorMessage = nil
+            if !warm { nightShiftEnabledBeforeOverride = nil }
         }
         pollNightShift()
     }

@@ -127,7 +127,7 @@ bool MBReadNightShift(bool *active, bool *enabled, int32_t *mode) {
     return true;
 }
 
-bool MBSetNightShiftWarm(bool warm) {
+bool MBSetNightShiftWarm(bool warm, bool enabledWhenOff) {
     id client = MBNightShiftClient();
     SEL setActive = sel_registerName("setActive:");
     SEL setEnabled = sel_registerName("setEnabled:");
@@ -138,9 +138,10 @@ bool MBSetNightShiftWarm(bool warm) {
         !MBReadNightShift(&active, &enabled, &mode)) return false;
     if (warm && !enabled && !((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setEnabled, YES)) return false;
     if (!((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setActive, warm ? YES : NO)) return false;
-    if (!warm && mode == 0 && enabled &&
-        !((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setEnabled, NO)) return false;
-    return MBReadNightShift(&active, &enabled, &mode) && (active && enabled) == warm;
+    if (!warm && enabled != enabledWhenOff &&
+        !((BOOL (*)(id, SEL, BOOL))objc_msgSend)(client, setEnabled, enabledWhenOff)) return false;
+    return MBReadNightShift(&active, &enabled, &mode) &&
+           (active && enabled) == warm && (warm || enabled == enabledWhenOff);
 }
 
 typedef struct {

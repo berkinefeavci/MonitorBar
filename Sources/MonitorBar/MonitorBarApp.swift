@@ -31,6 +31,9 @@ import SwiftUI
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
         if popover.isShown { popover.close() }
-        else { popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY) }
+        else {
+            model.refresh()
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
     }
 }

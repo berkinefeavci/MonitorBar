@@ -166,7 +166,7 @@ import DDCBridge
 
     private func updateDisplays(_ newDisplays: [DisplayIdentity]) {
         generation += 1
-        lastAppliedNight = nil
+        if newDisplays != displays { lastAppliedNight = nil }
         brightnessScheduler.cancel()
         contrastScheduler.cancel()
         builtInScheduler.cancel()

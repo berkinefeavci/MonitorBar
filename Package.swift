@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.macOS("26.0")],
     products: [.executable(name: "MonitorBar", targets: ["MonitorBar"])],
     targets: [
-        .executableTarget(name: "MonitorBar"),
-        .testTarget(name: "MonitorBarTests", dependencies: ["MonitorBar"]),
+        .target(name: "DDCBridge", publicHeadersPath: "include", linkerSettings: [.linkedFramework("IOKit")]),
+        .executableTarget(name: "MonitorBar", dependencies: ["DDCBridge"]),
+        .testTarget(name: "MonitorBarTests", dependencies: ["MonitorBar", "DDCBridge"]),
     ]
 )

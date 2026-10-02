@@ -30,6 +30,8 @@ import DDCBridge
     private var contrastRequest = 0
     private var builtInRequest = 0
     private var scheduleTimer: Timer?
+    private var builtInPollTimer: Timer?
+    private var lastMirroredBuiltIn: Double?
     private var lastAppliedNight: Bool?
 
     var selectedProbe: DDCProbe? { probes.first { $0.display.id == selectedID } }
@@ -45,6 +47,9 @@ import DDCBridge
         scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyScheduleIfNeeded() }
         }
+        builtInPollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollBuiltInBrightness() }
+        }
     }
 
     func stop() {
@@ -53,6 +58,8 @@ import DDCBridge
         builtInScheduler.cancel()
         scheduleTimer?.invalidate()
         scheduleTimer = nil
+        builtInPollTimer?.invalidate()
+        builtInPollTimer = nil
         discovery.stop()
     }
 
@@ -69,6 +76,7 @@ import DDCBridge
     func setLinkBrightness(_ enabled: Bool) {
         linkBrightness = enabled
         UserDefaults.standard.set(enabled, forKey: "linkBrightness")
+        lastMirroredBuiltIn = builtInBrightnessValue
     }
 
     func setScheduleEnabled(_ enabled: Bool) {
@@ -140,6 +148,7 @@ import DDCBridge
             var readback: Float = 0
             if MBWriteBuiltInBrightness(display.id, target), MBReadBuiltInBrightness(display.id, &readback) {
                 self.builtInBrightnessValue = Double(readback) * 100
+                self.lastMirroredBuiltIn = Double(readback) * 100
                 if abs(Double(readback) - Double(target)) > 0.02 {
                     self.errorMessage = "Yerleşik ekran değişikliği doğrulanmadı"
                 }
@@ -174,8 +183,10 @@ import DDCBridge
         if let builtInDisplay {
             var level: Float = 0
             builtInBrightnessValue = MBReadBuiltInBrightness(builtInDisplay.id, &level) ? Double(level) * 100 : nil
+            lastMirroredBuiltIn = builtInBrightnessValue
         } else {
             builtInBrightnessValue = nil
+            lastMirroredBuiltIn = nil
         }
         displays = newDisplays
         onPresenceChange?(!newDisplays.isEmpty)
@@ -253,5 +264,23 @@ import DDCBridge
         let level = isNight ? nightBrightness : dayBrightness
         setExternalBrightness(level)
         setBuiltInBrightnessOnly(level)
+    }
+
+    private func pollBuiltInBrightness() {
+        guard let display = builtInDisplay else { return }
+        var raw: Float = 0
+        guard MBReadBuiltInBrightness(display.id, &raw) else { return }
+        let value = Double(raw) * 100
+        builtInBrightnessValue = value
+        guard let previous = lastMirroredBuiltIn else {
+            lastMirroredBuiltIn = value
+            return
+        }
+        if !linkBrightness {
+            lastMirroredBuiltIn = value
+        } else if abs(value - previous) >= 2 {
+            lastMirroredBuiltIn = value
+            setExternalBrightness(value)
+        }
     }
 }

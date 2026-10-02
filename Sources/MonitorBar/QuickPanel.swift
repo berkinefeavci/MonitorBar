@@ -123,6 +123,10 @@ struct QuickPanel: View {
                 .toggleStyle(.switch)
                 .disabled(!model.canChangeBrightness || !model.canChangeBuiltInBrightness)
                 .padding(.top, 9)
+                Text("Mac parlaklığı değişince harici ekran da takip eder.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Divider().padding(.vertical, 17)

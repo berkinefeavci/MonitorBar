@@ -4,6 +4,9 @@ import Foundation
 import SwiftUI
 
 if CommandLine.arguments.contains("--probe") {
+    var keyboardLevel: Float = 0
+    let keyboardValue = MBReadKeyboardBrightness(&keyboardLevel) ? "\(Int((keyboardLevel * 100).rounded()))%" : "unavailable"
+    print("Keyboard backlight: \(keyboardValue)")
     if let builtIn = DisplayDiscovery.builtInDisplay() {
         var level: Float = 0
         let value = MBReadBuiltInBrightness(builtIn.id, &level) ? "\(Int((level * 100).rounded()))%" : "unavailable"

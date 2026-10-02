@@ -15,3 +15,5 @@ bool MBWriteVCP(int32_t index, uint8_t code, uint16_t value);
 
 bool MBReadBuiltInBrightness(uint32_t displayID, float *value);
 bool MBWriteBuiltInBrightness(uint32_t displayID, float value);
+bool MBReadKeyboardBrightness(float *value);
+bool MBWriteKeyboardBrightness(float value);

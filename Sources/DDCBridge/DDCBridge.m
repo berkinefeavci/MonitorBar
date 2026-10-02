@@ -2,6 +2,9 @@
 #import <CoreFoundation/CoreFoundation.h>
 #import <IOKit/IOKitLib.h>
 #import <dlfcn.h>
+#import <math.h>
+#import <objc/message.h>
+#import <objc/runtime.h>
 #import <unistd.h>
 
 typedef CFTypeRef MBAVService;
@@ -44,6 +47,53 @@ bool MBReadBuiltInBrightness(uint32_t displayID, float *value) {
 bool MBWriteBuiltInBrightness(uint32_t displayID, float value) {
     if (!MBLoadDisplayServices() || value < 0 || value > 1 || displayBrightnessSet(displayID, value) != 0) return false;
     if (displayBrightnessChanged) displayBrightnessChanged(displayID, value);
+    return true;
+}
+
+static id MBKeyboardClient(void) {
+    static id client;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        if (!dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_NOW)) return;
+        Class cls = objc_getClass("KeyboardBrightnessClient");
+        if (!cls) return;
+        id allocated = ((id (*)(id, SEL))objc_msgSend)(cls, sel_registerName("alloc"));
+        client = ((id (*)(id, SEL))objc_msgSend)(allocated, sel_registerName("init"));
+    });
+    return client;
+}
+
+static bool MBKeyboardID(uint64_t *keyboardID) {
+    id client = MBKeyboardClient();
+    if (!client || !class_getInstanceMethod(object_getClass(client), sel_registerName("copyKeyboardBacklightIDs"))) return false;
+    id ids = ((id (*)(id, SEL))objc_msgSend)(client, sel_registerName("copyKeyboardBacklightIDs"));
+    if (!ids) return false;
+    uint64_t count = ((uint64_t (*)(id, SEL))objc_msgSend)(ids, sel_registerName("count"));
+    if (count) {
+        id number = ((id (*)(id, SEL, uint64_t))objc_msgSend)(ids, sel_registerName("objectAtIndex:"), 0);
+        *keyboardID = ((uint64_t (*)(id, SEL))objc_msgSend)(number, sel_registerName("unsignedLongLongValue"));
+    }
+    ((void (*)(id, SEL))objc_msgSend)(ids, sel_registerName("release"));
+    return count > 0;
+}
+
+bool MBReadKeyboardBrightness(float *value) {
+    uint64_t keyboardID;
+    id client = MBKeyboardClient();
+    if (!value || !MBKeyboardID(&keyboardID) ||
+        !class_getInstanceMethod(object_getClass(client), sel_registerName("brightnessForKeyboard:"))) return false;
+    float level = ((float (*)(id, SEL, uint64_t))objc_msgSend)(client, sel_registerName("brightnessForKeyboard:"), keyboardID);
+    if (!isfinite(level) || level < 0 || level > 1) return false;
+    *value = level;
+    return true;
+}
+
+bool MBWriteKeyboardBrightness(float value) {
+    uint64_t keyboardID;
+    id client = MBKeyboardClient();
+    if (!isfinite(value) || value < 0 || value > 1 || !MBKeyboardID(&keyboardID) ||
+        !class_getInstanceMethod(object_getClass(client), sel_registerName("setBrightness:forKeyboard:"))) return false;
+    ((void (*)(id, SEL, float, uint64_t))objc_msgSend)(client, sel_registerName("setBrightness:forKeyboard:"), value, keyboardID);
     return true;
 }
 

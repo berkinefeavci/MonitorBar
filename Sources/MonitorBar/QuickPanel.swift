@@ -3,6 +3,10 @@ import SwiftUI
 
 struct QuickPanel: View {
     @ObservedObject var model: MonitorModel
+    @AppStorage("externalBarColor") private var externalBarColor = "#36DADD"
+    @AppStorage("builtInBarColor") private var builtInBarColor = "#36DADD"
+    @AppStorage("keyboardBarColor") private var keyboardBarColor = "#36DADD"
+    @AppStorage("contrastBarColor") private var contrastBarColor = "#36DADD"
     @State private var showDetails = false
     @State private var showDiagnostics = false
 
@@ -21,6 +25,7 @@ struct QuickPanel: View {
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
         .glassEffect(.clear, in: .rect(cornerRadius: 22))
+        .background(.black.opacity(0.94), in: RoundedRectangle(cornerRadius: 22))
     }
 
     private var controls: some View {
@@ -75,7 +80,8 @@ struct QuickPanel: View {
             brightnessSlider(
                 value: Binding(get: { model.brightnessValue }, set: { model.setBrightness($0) }),
                 enabled: model.canChangeBrightness,
-                label: "Monitörün donanım parlaklığı"
+                label: "Monitörün donanım parlaklığı",
+                tint: barColor(externalBarColor)
             )
             .padding(.top, 8)
 
@@ -103,7 +109,8 @@ struct QuickPanel: View {
                         set: { model.setBuiltInBrightness($0) }
                     ),
                     enabled: model.canChangeBuiltInBrightness,
-                    label: "Yerleşik ekran parlaklığı"
+                    label: "Yerleşik ekran parlaklığı",
+                    tint: barColor(builtInBarColor)
                 )
                 .padding(.top, 6)
                 HStack {
@@ -124,6 +131,30 @@ struct QuickPanel: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if model.canChangeKeyboardBrightness {
+                Divider().padding(.top, 16)
+                HStack {
+                    Label("Klavye ışığı", systemImage: "keyboard")
+                    Spacer()
+                    Text("\(Int((model.keyboardBrightnessValue ?? 0).rounded()))%")
+                        .monospacedDigit()
+                }
+                .font(.system(size: 12, weight: .medium))
+                .padding(.top, 13)
+                brightnessSlider(
+                    value: Binding(
+                        get: { model.keyboardBrightnessValue ?? 0 },
+                        set: { model.setKeyboardBrightness($0) }
+                    ),
+                    enabled: true,
+                    label: "Klavye ışığı parlaklığı",
+                    tint: barColor(keyboardBarColor),
+                    lowSymbol: "keyboard",
+                    highSymbol: "sun.max.fill"
+                )
+                .padding(.top, 6)
             }
 
             Divider().padding(.vertical, 17)
@@ -177,16 +208,15 @@ struct QuickPanel: View {
             .accessibilityLabel("Parlaklık \(title)")
     }
 
-    private func brightnessSlider(value: Binding<Double>, enabled: Bool, label: String) -> some View {
+    private func brightnessSlider(value: Binding<Double>, enabled: Bool, label: String,
+                                  tint: Color, lowSymbol: String = "sun.min.fill",
+                                  highSymbol: String = "sun.max.fill") -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "sun.min.fill")
+            Image(systemName: lowSymbol)
                 .font(.system(size: 11))
                 .frame(width: 16)
-            Slider(value: value, in: 0...100)
-                .tint(.blue)
-                .disabled(!enabled)
-                .accessibilityLabel(label)
-            Image(systemName: "sun.max.fill")
+            ColorSlider(value: value, tint: tint, enabled: enabled, label: label)
+            Image(systemName: highSymbol)
                 .font(.system(size: 16))
                 .frame(width: 16)
         }
@@ -208,12 +238,11 @@ struct QuickPanel: View {
                     Image(systemName: "circle.lefthalf.filled")
                         .font(.system(size: 11))
                         .frame(width: 16)
-                    Slider(value: Binding(
+                    ColorSlider(value: Binding(
                         get: { model.contrastValue },
                         set: { model.setContrast($0) }
-                    ), in: 0...100)
-                    .tint(.blue)
-                    .accessibilityLabel("Monitör kontrastı")
+                    ), tint: barColor(contrastBarColor), enabled: true,
+                       label: "Monitör kontrastı")
                     Image(systemName: "circle.righthalf.filled")
                         .font(.system(size: 16))
                         .frame(width: 16)
@@ -228,6 +257,20 @@ struct QuickPanel: View {
             }
             .font(.system(size: 12, weight: .medium))
             .padding(.top, model.canChangeContrast ? 6 : 0)
+
+            Divider().padding(.vertical, 5)
+            Text("Çubuk renkleri")
+                .font(.system(size: 12, weight: .semibold))
+            ColorPicker("Harici ekran", selection: colorBinding($externalBarColor), supportsOpacity: false)
+            if model.builtInDisplay != nil {
+                ColorPicker("Yerleşik ekran", selection: colorBinding($builtInBarColor), supportsOpacity: false)
+            }
+            if model.canChangeKeyboardBrightness {
+                ColorPicker("Klavye ışığı", selection: colorBinding($keyboardBarColor), supportsOpacity: false)
+            }
+            if model.canChangeContrast {
+                ColorPicker("Kontrast", selection: colorBinding($contrastBarColor), supportsOpacity: false)
+            }
 
             Divider().padding(.vertical, 5)
             HStack {
@@ -266,6 +309,29 @@ struct QuickPanel: View {
             .font(.system(size: 12))
             .foregroundStyle(.blue)
         }
+    }
+
+    private func barColor(_ hex: String) -> Color {
+        guard hex.count == 7, hex.first == "#",
+              let rgb = UInt32(hex.dropFirst(), radix: 16) else { return .cyan }
+        return Color(red: Double((rgb >> 16) & 0xFF) / 255,
+                     green: Double((rgb >> 8) & 0xFF) / 255,
+                     blue: Double(rgb & 0xFF) / 255)
+    }
+
+    private func colorBinding(_ hex: Binding<String>) -> Binding<Color> {
+        Binding(
+            get: { barColor(hex.wrappedValue) },
+            set: { color in
+                guard let rgb = NSColor(color).usingColorSpace(.deviceRGB) else { return }
+                func byte(_ component: CGFloat) -> Int {
+                    Int((min(1, max(0, component)) * 255).rounded())
+                }
+                hex.wrappedValue = String(format: "#%02X%02X%02X",
+                                          byte(rgb.redComponent), byte(rgb.greenComponent),
+                                          byte(rgb.blueComponent))
+            }
+        )
     }
 
     private func scheduleTime(night: Bool) -> Binding<Date> {
@@ -321,5 +387,39 @@ struct QuickPanel: View {
         case .some(let value): String(format: "0x%02X", value)
         case nil: "Kullanılamıyor"
         }
+    }
+}
+
+private struct ColorSlider: View {
+    @Binding var value: Double
+    let tint: Color
+    let enabled: Bool
+    let label: String
+
+    var body: some View {
+        GeometryReader { geometry in
+            let trackWidth = max(0, geometry.size.width - 20)
+            let progress = min(1, max(0, value / 100))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.white.opacity(0.18))
+                    .frame(width: trackWidth, height: 6)
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(tint).frame(width: trackWidth * progress, height: 6)
+                    }
+                    .offset(x: 10)
+                Circle()
+                    .fill(.white)
+                    .frame(width: 20, height: 20)
+                    .offset(x: trackWidth * progress)
+                Slider(value: $value, in: 0...100)
+                    .opacity(0.01)
+                    .disabled(!enabled)
+                    .accessibilityLabel(label)
+            }
+            .frame(height: 22)
+            .opacity(enabled ? 1 : 0.45)
+        }
+        .frame(height: 22)
     }
 }

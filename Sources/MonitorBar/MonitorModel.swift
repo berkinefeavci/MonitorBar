@@ -9,6 +9,7 @@ import DDCBridge
     @Published private(set) var brightnessValue = 0.0
     @Published private(set) var builtInDisplay: DisplayIdentity?
     @Published private(set) var builtInBrightnessValue: Double?
+    @Published private(set) var keyboardBrightnessValue: Double?
     @Published private(set) var linkBrightness = UserDefaults.standard.bool(forKey: "linkBrightness")
     @Published private(set) var scheduleEnabled = UserDefaults.standard.bool(forKey: "scheduleEnabled")
     @Published private(set) var nightStart = UserDefaults.standard.object(forKey: "nightStart") as? Int ?? 22 * 60
@@ -25,10 +26,13 @@ import DDCBridge
     private let brightnessScheduler = WriteScheduler()
     private let contrastScheduler = WriteScheduler()
     private let builtInScheduler = WriteScheduler()
+    private let keyboardScheduler = WriteScheduler()
     private var generation = 0
     private var brightnessRequest = 0
     private var contrastRequest = 0
     private var builtInRequest = 0
+    private var keyboardRequest = 0
+    private var keyboardWritePending = false
     private var scheduleTimer: Timer?
     private var builtInPollTimer: Timer?
     private var lastMirroredBuiltIn: Double?
@@ -38,12 +42,14 @@ import DDCBridge
     var canChangeBrightness: Bool { selectedProbe?.brightness != nil && !isLoading }
     var canChangeContrast: Bool { selectedProbe?.contrast != nil && !isLoading }
     var canChangeBuiltInBrightness: Bool { builtInDisplay != nil && builtInBrightnessValue != nil }
+    var canChangeKeyboardBrightness: Bool { keyboardBrightnessValue != nil }
 
     func start() {
         discovery.onChange = { [weak self] displays in
             MainActor.assumeIsolated { self?.updateDisplays(displays) }
         }
         discovery.start()
+        pollKeyboardBrightness()
         scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyScheduleIfNeeded() }
         }
@@ -56,6 +62,7 @@ import DDCBridge
         brightnessScheduler.cancel()
         contrastScheduler.cancel()
         builtInScheduler.cancel()
+        keyboardScheduler.cancel()
         scheduleTimer?.invalidate()
         scheduleTimer = nil
         builtInPollTimer?.invalidate()
@@ -120,6 +127,31 @@ import DDCBridge
     func setBuiltInBrightness(_ value: Double) {
         setBuiltInBrightnessOnly(value)
         if linkBrightness { setExternalBrightness(value) }
+    }
+
+    func setKeyboardBrightness(_ value: Double) {
+        guard keyboardBrightnessValue != nil else { return }
+        let requested = min(100, max(0, value))
+        keyboardBrightnessValue = requested
+        errorMessage = nil
+        keyboardRequest += 1
+        let request = keyboardRequest
+        keyboardWritePending = true
+        keyboardScheduler.schedule(after: 0.15) { [weak self] in
+            guard let self, self.keyboardRequest == request else { return }
+            var readback: Float = 0
+            let target = Float(requested / 100)
+            if MBWriteKeyboardBrightness(target), MBReadKeyboardBrightness(&readback) {
+                self.keyboardBrightnessValue = Double(readback) * 100
+                if abs(Double(readback) - Double(target)) > 0.02 {
+                    self.errorMessage = "Klavye ışığı değişikliği doğrulanmadı"
+                }
+            } else {
+                self.keyboardBrightnessValue = nil
+                self.errorMessage = "Klavye ışığı kullanılamıyor"
+            }
+            self.keyboardWritePending = false
+        }
     }
 
     private func setExternalBrightness(_ value: Double) {
@@ -267,6 +299,7 @@ import DDCBridge
     }
 
     private func pollBuiltInBrightness() {
+        pollKeyboardBrightness()
         guard let display = builtInDisplay else { return }
         var raw: Float = 0
         guard MBReadBuiltInBrightness(display.id, &raw) else { return }
@@ -282,5 +315,11 @@ import DDCBridge
             lastMirroredBuiltIn = value
             setExternalBrightness(value)
         }
+    }
+
+    private func pollKeyboardBrightness() {
+        guard !keyboardWritePending else { return }
+        var raw: Float = 0
+        keyboardBrightnessValue = MBReadKeyboardBrightness(&raw) ? Double(raw) * 100 : nil
     }
 }

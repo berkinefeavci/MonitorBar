@@ -16,6 +16,8 @@ import Combine
     private let brightnessScheduler = WriteScheduler()
     private let contrastScheduler = WriteScheduler()
     private var generation = 0
+    private var brightnessRequest = 0
+    private var contrastRequest = 0
 
     var selectedProbe: DDCProbe? { probes.first { $0.display.id == selectedID } }
     var canChangeBrightness: Bool { selectedProbe?.brightness != nil && !isLoading }
@@ -50,9 +52,11 @@ import Combine
         brightnessValue = value
         errorMessage = nil
         isWriting = true
+        brightnessRequest += 1
         let token = generation
+        let request = brightnessRequest
         brightnessScheduler.schedule(after: 0.15) { [weak self] in
-            self?.send(display: probe.display, vcp: 0x10, raw: raw, token: token)
+            self?.send(display: probe.display, vcp: 0x10, raw: raw, token: token, request: request)
         }
     }
 
@@ -62,9 +66,11 @@ import Combine
         contrastValue = value
         errorMessage = nil
         isWriting = true
+        contrastRequest += 1
         let token = generation
+        let request = contrastRequest
         contrastScheduler.schedule(after: 0.15) { [weak self] in
-            self?.send(display: probe.display, vcp: 0x12, raw: raw, token: token)
+            self?.send(display: probe.display, vcp: 0x12, raw: raw, token: token, request: request)
         }
     }
 
@@ -100,11 +106,12 @@ import Combine
         }
     }
 
-    private func send(display: DisplayIdentity, vcp: UInt8, raw: UInt16, token: Int) {
+    private func send(display: DisplayIdentity, vcp: UInt8, raw: UInt16, token: Int, request: Int) {
         guard generation == token, selectedID == display.id else { return }
         DDCClient.shared.write(display: display, vcp: vcp, raw: raw) { [weak self] readback in
             Task { @MainActor in
-                guard let self, self.generation == token, self.selectedID == display.id else { return }
+                guard let self, self.generation == token, self.selectedID == display.id,
+                      request == (vcp == 0x10 ? self.brightnessRequest : self.contrastRequest) else { return }
                 self.isWriting = false
                 switch writeOutcome(requested: raw, readback: readback) {
                 case .verified:

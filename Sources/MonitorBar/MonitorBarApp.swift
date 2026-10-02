@@ -33,6 +33,7 @@ import SwiftUI
         if popover.isShown { popover.close() }
         else {
             model.refresh()
+            NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }

@@ -1,40 +1,52 @@
 # MonitorBar
 
-The Quick Panel uses translucent dark glass. “Sıcak ışık şimdi” controls macOS Night Shift while preserving its system schedule; “Night Shift ayarları…” opens the system warmth and schedule settings. On this Mac, the toggle was read as warm after switching on and off after switching off; sunset schedule mode 1 and its previously disabled state were restored.
+MonitorBar is a macOS menu bar app for external monitor brightness through DDC/CI. It sends hardware commands when the display responds; it does not dim the screen with an overlay. The menu bar icon appears while an external display is connected and disappears when none is connected.
 
-A compact macOS menu bar control for external-display hardware brightness. This is a local, personal build. It uses DDC/CI commands, not a dark overlay or gamma adjustment.
+## Compatibility
+
+- macOS 12 or newer, on Apple Silicon or Intel MacBooks. The build script creates one universal app containing both architectures.
+- Liquid Glass buttons are available only on macOS 26 or newer. Earlier versions use standard macOS buttons; the setting is hidden.
+- External hardware brightness and contrast require a compatible monitor, cable or adapter, and macOS DDC/CI transport. The controls are disabled when the monitor does not return a valid response.
+- Built-in display brightness, keyboard backlight, and Night Shift appear only when the Mac exposes working controls. Keyboard backlight color cannot be changed by this app; its color picker changes the slider color.
+- Apple Silicon DDC/CI was verified on a Fazeon X27F166QB. Intel DDC/CI compiles and its protocol tests pass under Rosetta, but has not been tested on Intel hardware. Compatibility with every MacBook or monitor is not established.
 
 ## Build and run
 
-Requires macOS 26+ and Xcode 26+ on Apple Silicon. On the current Mac, Xcode 27.0 builds it.
+Install Xcode with the macOS SDK and command-line tools. This repository was built with Xcode 27.0.
 
 ```bash
 ./scripts/build-app.sh
 open dist/MonitorBar.app
 ```
 
-The display icon appears only while an external monitor is connected. Click it to open the translucent dark-glass Quick Panel. The first slider controls the selected external monitor through DDC/CI. The second controls the Mac's built-in display through DisplayServices. “İki ekranı birlikte ayarla” applies subsequent slider changes to both. It also polls the built-in brightness once per second and mirrors changes of at least 2 percentage points to the external display. This was verified with the native brightness slider in macOS Displays settings; a direct Control Center drag and automatic ambient-light changes have not been tested separately. The keyboard slider controls the MacBook keyboard backlight when supported. “Diğer kontroller” has separate saved color pickers for the external, built-in, keyboard, and contrast slider bars. It also shows contrast when supported and reads the input without switching it. The upper-right button shows diagnostics, Refresh, and Quit. If no external monitor is connected, the hidden menu bar app stays alive for reconnection; use Activity Monitor to quit it.
+The script builds both architectures for macOS 12 and ad-hoc signs `dist/MonitorBar.app` for local use. A downloadable GitHub release needs Developer ID signing and Apple notarization for normal Gatekeeper launch.
 
-“Saatle parlaklık” is off by default. In “Diğer kontroller,” set the night/day start times and brightness values, then enable it. It applies the selected external monitor and built-in display at the start of each period, when enabled or restarted, and after display reconnection. Manual changes remain until the next period change or reconnection. MonitorBar must remain running. “Night Shift ayarları…” opens macOS Displays settings, where macOS provides its own warm-color schedule.
+The first slider controls the selected external monitor. The built-in slider controls the Mac display when available. “İki ekranı birlikte ayarla” changes both displays together and follows built-in brightness changes of at least 2 percentage points. The keyboard slider appears only on supported MacBooks. Expand “Diğer kontroller” for contrast and current input information. The input is read only.
 
-Read-only hardware diagnostic:
+Open the upper-right **Ayarlar** button to choose each slider color, enable or disable glass buttons on macOS 26+, configure timed brightness, open Night Shift settings, refresh the connection, or quit. These choices stay in the settings screen so the main panel stays compact. On macOS 12, the Night Shift settings link opens the legacy Displays preferences pane.
+
+“Saatle parlaklık” is off by default. Once enabled, it sets the selected external display and built-in display at each configured period change, when the app starts, and after display reconnection. Manual changes remain until the next period change or reconnection. MonitorBar must remain running. “Sıcak ışık şimdi” controls macOS Night Shift while preserving its system schedule.
+
+If no external display is connected, MonitorBar stays running with its menu bar icon hidden. Reconnect a display to show it again; use Activity Monitor to quit it while no icon is visible.
+
+## Verification
 
 ```bash
-.build/release/MonitorBar --probe
+swift test --triple arm64-apple-macosx12.0 --scratch-path .build/arm64
+swift build --build-tests --triple x86_64-apple-macosx12.0 --scratch-path .build/x86_64
+arch -x86_64 xcrun xctest .build/x86_64/out/Products/Debug/MonitorBarTests.xctest
+.build/arm64/out/Products/Release/MonitorBar --probe
 ```
 
-`swift test` checks display-to-DDC matching, value conversion, DDC packets, reply validation, pending-write cancellation, and overnight schedule boundaries. On the Fazeon X27F166QB, MonitorBar's own slider changed VCP `0x10` from `58/100` to `52/100`; an independent read returned `52/100`. The slider restored `58/100`, also confirmed by an independent read. The built-in display was read at 65%, changed to 62%, independently read at 62%, and restored to 65%. Linked control and the schedule set both displays to 60% and 70% respectively; independent reads confirmed both, then their prior levels were restored. Protocol readback does not prove perceived light output.
-
-On the current MacBook, the keyboard backlight was read at 49%, set to 40% with the app slider, and independently read at 40%. It was set back to 49%; macOS automatic adjustment subsequently changed it to 52%. This verifies system readback, not perceived light output. The automatic keyboard backlight setting remains under macOS control and may change the level after a manual adjustment.
+Tests cover display-to-DDC matching, value conversion, DDC packets and replies, pending-write cancellation, and overnight schedule boundaries. On the Fazeon X27F166QB, an independent DDC read confirmed brightness changes made by MonitorBar and restoration of the prior value. Independent system reads also confirmed built-in display and keyboard backlight changes on the tested MacBook. These checks establish reported values, not measured light output.
 
 ## Limits
 
-- DDC/CI support depends on the monitor, cable/adapter, and macOS. The app disables hardware controls when a valid response is unavailable.
-- DDC uses the private `IOAVService` interface. A macOS update may change it. This personal build is not intended for Mac App Store distribution.
-- Input switching, software dimming, auto-start, and interception of keyboard brightness keys are outside this version.
-- macOS Control Center accepts third-party WidgetKit buttons and toggles, but its public ControlWidget templates do not provide a custom brightness slider or a way to extend Apple's Displays slider. MonitorBar uses a menu bar panel for continuous control.
-- Built-in brightness, keyboard backlight, Night Shift, and external DDC use Apple private interfaces. A macOS update may change them. Built-in keyboard lighting has one brightness level; MonitorBar color pickers change only the on-screen slider colors.
-- Cable disconnect/reconnect and menu bar item visibility were not physically tested during this build. The app listens for macOS display-change and wake events and updates status item visibility from the external display list.
+- Apple Silicon DDC uses the private `IOAVService` interface. Built-in brightness, keyboard backlight, and Night Shift also use private Apple interfaces. A macOS update can change or remove them. The app is not prepared for Mac App Store distribution.
+- Intel DDC uses the IOKit framebuffer I2C interface. Some Macs, adapters, and display links expose no usable I2C bus. Intel hardware testing is still required before claiming Intel monitor support.
+- macOS Control Center does not offer a public third-party continuous brightness slider or a way to extend Apple's Displays slider. MonitorBar uses a menu bar panel for continuous control.
+- Input switching, software dimming, automatic launch at login, and interception of keyboard brightness keys are outside this version.
+- Cable disconnect and reconnect were not physically tested during this build. The app listens for macOS display-change and wake events and updates menu bar visibility from the external display list.
 
 ## Source research
 

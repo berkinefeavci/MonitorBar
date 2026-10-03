@@ -17,7 +17,9 @@ import SwiftUI
         }
         popover.behavior = .transient
         let hosting = NSHostingController(rootView: QuickPanel(model: model))
-        hosting.sizingOptions = [.preferredContentSize, .intrinsicContentSize]
+        if #available(macOS 13, *) {
+            hosting.sizingOptions = [.preferredContentSize, .intrinsicContentSize]
+        }
         popover.contentViewController = hosting
         model.onPresenceChange = { [weak self] present in
             self?.statusItem.isVisible = present

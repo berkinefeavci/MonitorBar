@@ -144,6 +144,7 @@ bool MBSetNightShiftWarm(bool warm, bool enabledWhenOff) {
            (active && enabled) == warm && (warm || enabled == enabledWhenOff);
 }
 
+#if !defined(__x86_64__)
 typedef struct {
     MBAVService service;
     uint32_t vendor;
@@ -174,6 +175,7 @@ static bool MBLoad(void) {
     });
     return createService && readI2C && writeI2C;
 }
+#endif
 
 static uint8_t MBXOR(const uint8_t *bytes, size_t count, uint8_t seed) {
     for (size_t i = 0; i < count; i++) seed ^= bytes[i];
@@ -209,6 +211,7 @@ bool MBParseReply(const uint8_t *reply, size_t count, uint8_t code,
     return true;
 }
 
+#if !defined(__x86_64__)
 void MBRescan(void) {
     for (int32_t i = 0; i < entryCount; i++) {
         if (entries[i].service) CFRelease(entries[i].service);
@@ -301,3 +304,4 @@ bool MBWriteVCP(int32_t index, uint8_t code, uint16_t value) {
     }
     return false;
 }
+#endif

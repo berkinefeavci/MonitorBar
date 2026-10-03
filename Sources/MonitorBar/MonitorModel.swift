@@ -10,6 +10,7 @@ import DDCBridge
     @Published private(set) var builtInDisplay: DisplayIdentity?
     @Published private(set) var builtInBrightnessValue: Double?
     @Published private(set) var keyboardBrightnessValue: Double?
+    @Published private(set) var keyboardAutoBrightnessEnabled: Bool?
     @Published private(set) var nightShiftWarm: Bool?
     @Published private(set) var linkBrightness = UserDefaults.standard.bool(forKey: "linkBrightness")
     @Published private(set) var scheduleEnabled = UserDefaults.standard.bool(forKey: "scheduleEnabled")
@@ -87,6 +88,9 @@ import DDCBridge
         linkBrightness = enabled
         UserDefaults.standard.set(enabled, forKey: "linkBrightness")
         lastMirroredBuiltIn = builtInBrightnessValue
+        if enabled, let builtInBrightnessValue, canChangeBrightness {
+            setExternalBrightness(builtInBrightnessValue)
+        }
     }
 
     func setScheduleEnabled(_ enabled: Bool) {
@@ -135,8 +139,11 @@ import DDCBridge
     func setKeyboardBrightness(_ value: Double) {
         guard keyboardBrightnessValue != nil else { return }
         let requested = min(100, max(0, value))
+        if keyboardAutoBrightnessEnabled == true {
+            keyboardAutoBrightnessEnabled = MBSetKeyboardAutoBrightness(false) ? false : true
+        }
         keyboardBrightnessValue = requested
-        errorMessage = nil
+        errorMessage = keyboardAutoBrightnessEnabled == true ? "Klavye ışığının otomatik ayarı kapatılamadı" : nil
         keyboardRequest += 1
         let request = keyboardRequest
         keyboardWritePending = true
@@ -154,6 +161,24 @@ import DDCBridge
                 self.errorMessage = "Klavye ışığı kullanılamıyor"
             }
             self.keyboardWritePending = false
+        }
+    }
+
+    func setKeyboardBrightnessPinned(_ pinned: Bool) {
+        guard keyboardBrightnessValue != nil else { return }
+        if MBSetKeyboardAutoBrightness(!pinned) {
+            keyboardAutoBrightnessEnabled = !pinned
+            errorMessage = nil
+            if pinned {
+                setKeyboardBrightness(keyboardBrightnessValue ?? 0)
+            } else {
+                keyboardScheduler.cancel()
+                keyboardRequest += 1
+                keyboardWritePending = false
+                pollKeyboardBrightness()
+            }
+        } else {
+            errorMessage = "Klavye ışığının otomatik ayarı değiştirilemedi"
         }
     }
 
@@ -265,6 +290,10 @@ import DDCBridge
                 self.isWriting = false
                 self.syncValues()
                 self.applyScheduleIfNeeded()
+                if self.linkBrightness, !self.scheduleEnabled,
+                   let level = self.builtInBrightnessValue {
+                    self.setExternalBrightness(level)
+                }
             }
         }
     }
@@ -341,6 +370,8 @@ import DDCBridge
         guard !keyboardWritePending else { return }
         var raw: Float = 0
         keyboardBrightnessValue = MBReadKeyboardBrightness(&raw) ? Double(raw) * 100 : nil
+        var auto = false
+        keyboardAutoBrightnessEnabled = MBReadKeyboardAutoBrightness(&auto) ? auto : nil
     }
 
     private func pollNightShift() {

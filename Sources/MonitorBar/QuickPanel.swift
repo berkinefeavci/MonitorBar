@@ -73,7 +73,7 @@ struct QuickPanel: View {
             }
 
             HStack(alignment: .firstTextBaseline) {
-                Text("Parlaklık")
+                Text(model.linkBrightness && model.canChangeBuiltInBrightness ? "İki ekranın parlaklığı" : "Parlaklık")
                     .font(.system(size: 12, weight: .medium))
                 Spacer()
                 Text("\(Int(model.brightnessValue.rounded()))%")
@@ -85,7 +85,7 @@ struct QuickPanel: View {
             brightnessSlider(
                 value: Binding(get: { model.brightnessValue }, set: { model.setBrightness($0) }),
                 enabled: model.canChangeBrightness,
-                label: "Monitörün donanım parlaklığı",
+                label: model.linkBrightness && model.canChangeBuiltInBrightness ? "İki ekranın parlaklığı" : "Monitörün donanım parlaklığı",
                 tint: barColor(externalBarColor)
             )
             .padding(.top, 8)
@@ -99,25 +99,27 @@ struct QuickPanel: View {
 
             if let builtInDisplay = model.builtInDisplay {
                 Divider().padding(.top, 16)
-                HStack {
-                    Label(builtInDisplay.name, systemImage: "laptopcomputer")
-                        .lineLimit(1)
-                    Spacer()
-                    Text(model.builtInBrightnessValue.map { "\(Int($0.rounded()))%" } ?? "—")
-                        .monospacedDigit()
+                if !model.linkBrightness {
+                    HStack {
+                        Label(builtInDisplay.name, systemImage: "laptopcomputer")
+                            .lineLimit(1)
+                        Spacer()
+                        Text(model.builtInBrightnessValue.map { "\(Int($0.rounded()))%" } ?? "—")
+                            .monospacedDigit()
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.top, 13)
+                    brightnessSlider(
+                        value: Binding(
+                            get: { model.builtInBrightnessValue ?? 0 },
+                            set: { model.setBuiltInBrightness($0) }
+                        ),
+                        enabled: model.canChangeBuiltInBrightness,
+                        label: "Yerleşik ekran parlaklığı",
+                        tint: barColor(builtInBarColor)
+                    )
+                    .padding(.top, 6)
                 }
-                .font(.system(size: 12, weight: .medium))
-                .padding(.top, 13)
-                brightnessSlider(
-                    value: Binding(
-                        get: { model.builtInBrightnessValue ?? 0 },
-                        set: { model.setBuiltInBrightness($0) }
-                    ),
-                    enabled: model.canChangeBuiltInBrightness,
-                    label: "Yerleşik ekran parlaklığı",
-                    tint: barColor(builtInBarColor)
-                )
-                .padding(.top, 6)
                 HStack {
                     Text("İki ekranı birlikte ayarla")
                     Spacer()
@@ -132,7 +134,9 @@ struct QuickPanel: View {
                 .toggleStyle(.switch)
                 .disabled(!model.canChangeBrightness || !model.canChangeBuiltInBrightness)
                 .padding(.top, 9)
-                Text("Mac parlaklığı değişince harici ekran da takip eder.")
+                Text(model.linkBrightness
+                     ? "Bu çubuk iki ekranı ayarlar. Mac parlaklığı değişince harici ekran takip eder."
+                     : "Mac parlaklığı değişince harici ekran da takip eder.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -160,6 +164,18 @@ struct QuickPanel: View {
                     highSymbol: "sun.max.fill"
                 )
                 .padding(.top, 6)
+                if model.keyboardAutoBrightnessEnabled != nil {
+                    Toggle("Klavye ışığını sabit tut", isOn: Binding(
+                        get: { model.keyboardAutoBrightnessEnabled == false },
+                        set: { model.setKeyboardBrightnessPinned($0) }
+                    ))
+                    .font(.system(size: 11))
+                    .toggleStyle(.switch)
+                    .padding(.top, 7)
+                    Text("Çubuğu değiştirmek de otomatik klavye ışığını kapatır.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Divider().padding(.vertical, 17)
@@ -470,9 +486,8 @@ private struct ColorSlider: View {
             let trackWidth = max(0, geometry.size.width - 20)
             let progress = min(1, max(0, value / 100))
             ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.white.opacity(0.18))
-                    .frame(width: trackWidth, height: 6)
+                sliderTrack
+                    .frame(width: trackWidth, height: 10)
                     .overlay(alignment: .leading) {
                         Capsule().fill(tint).frame(width: trackWidth * progress, height: 6)
                     }
@@ -495,5 +510,13 @@ private struct ColorSlider: View {
             .opacity(enabled ? 1 : 0.45)
         }
         .frame(height: 22)
+    }
+
+    @ViewBuilder private var sliderTrack: some View {
+        if #available(macOS 26, *) {
+            Capsule().fill(.white.opacity(0.05)).glassEffect(.regular, in: .capsule)
+        } else {
+            Capsule().fill(.white.opacity(0.12)).background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }

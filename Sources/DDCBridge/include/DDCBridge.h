@@ -17,5 +17,7 @@ bool MBReadBuiltInBrightness(uint32_t displayID, float *value);
 bool MBWriteBuiltInBrightness(uint32_t displayID, float value);
 bool MBReadKeyboardBrightness(float *value);
 bool MBWriteKeyboardBrightness(float value);
+bool MBReadKeyboardAutoBrightness(bool *enabled);
+bool MBSetKeyboardAutoBrightness(bool enabled);
 bool MBReadNightShift(bool *active, bool *enabled, int32_t *mode);
 bool MBSetNightShiftWarm(bool warm, bool enabledWhenOff);

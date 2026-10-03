@@ -98,6 +98,27 @@ bool MBWriteKeyboardBrightness(float value) {
     return true;
 }
 
+bool MBReadKeyboardAutoBrightness(bool *enabled) {
+    uint64_t keyboardID;
+    id client = MBKeyboardClient();
+    if (!enabled || !MBKeyboardID(&keyboardID) ||
+        !class_getInstanceMethod(object_getClass(client), sel_registerName("isAutoBrightnessEnabledForKeyboard:"))) return false;
+    *enabled = ((bool (*)(id, SEL, uint64_t))objc_msgSend)(client,
+        sel_registerName("isAutoBrightnessEnabledForKeyboard:"), keyboardID);
+    return true;
+}
+
+bool MBSetKeyboardAutoBrightness(bool enabled) {
+    uint64_t keyboardID;
+    id client = MBKeyboardClient();
+    if (!MBKeyboardID(&keyboardID) ||
+        !class_getInstanceMethod(object_getClass(client), sel_registerName("enableAutoBrightness:forKeyboard:"))) return false;
+    ((void (*)(id, SEL, bool, uint64_t))objc_msgSend)(client,
+        sel_registerName("enableAutoBrightness:forKeyboard:"), enabled, keyboardID);
+    bool readback = !enabled;
+    return MBReadKeyboardAutoBrightness(&readback) && readback == enabled;
+}
+
 static id MBNightShiftClient(void) {
     static id client;
     static dispatch_once_t once;

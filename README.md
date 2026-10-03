@@ -25,7 +25,7 @@ open dist/MonitorBar.app
 
 The script builds both architectures for macOS 12 and ad-hoc signs `dist/MonitorBar.app` for local use. The app in GitHub Releases is separately Developer ID signed and Apple notarized.
 
-The first slider controls the selected external monitor. The built-in slider controls the Mac display when available. “İki ekranı birlikte ayarla” changes both displays together and follows built-in brightness changes of at least 2 percentage points. The keyboard slider appears only on supported MacBooks. Expand “Diğer kontroller” for contrast and current input information. The input is read only.
+The first slider controls the selected external monitor. When “İki ekranı birlikte ayarla” is on, one slider controls both displays; it uses Liquid Glass on macOS 26+. Enabling the link aligns the external display to the Mac's current brightness. When off, a separate built-in slider controls the Mac display. The external display follows built-in brightness changes of at least 2 percentage points while linked. The keyboard slider appears only on supported MacBooks. Moving it turns off macOS automatic keyboard brightness so the chosen level stays fixed. “Klavye ışığını sabit tut” exposes that system setting; turning it off restores automatic adjustment. The setting persists after MonitorBar quits, as it does in macOS Keyboard settings. Expand “Diğer kontroller” for contrast and current input information. The input is read only.
 
 Open the upper-right **Ayarlar** button to apply one color to all slider bars or choose each color separately, enable or disable glass buttons on macOS 26+, configure timed brightness, open Night Shift settings, refresh the connection, or quit. These choices stay in the settings screen so the main panel stays compact. On macOS 12, the Night Shift settings link opens the legacy Displays preferences pane.
 
@@ -55,6 +55,8 @@ Tests cover display-to-DDC matching, value conversion, DDC packets and replies, 
 ## Source research
 
 The DDC approach was informed by [traderGK/OpenDisplay](https://github.com/traderGK/OpenDisplay) (MIT), [AppleSiliconDDC](https://github.com/waydabber/AppleSiliconDDC) (MIT), [ScreenControl](https://github.com/pushbrands/ScreenControl) (MIT), and [aquitaine/OpenDisplay](https://github.com/aquitaine/OpenDisplay) (GPL-3.0-or-later). MonitorBar is a separate source tree and contains no GPL source or assets.
+
+Keyboard auto-brightness behavior was checked against [Apple's keyboard settings guide](https://support.apple.com/guide/mac-help/mchlp2265/mac) and [macos-keyboard-backlight](https://github.com/noluyorAbi/macos-keyboard-backlight) (MIT). No code was copied.
 
 Night Shift behavior was compared with [Luma](https://github.com/heymykro/luma) (MIT). No Luma code was copied.
 

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct QuickPanel: View {
     @ObservedObject var model: MonitorModel
+    var onSizeChange: (CGSize) -> Void = { _ in }
     @AppStorage("externalBarColor") private var externalBarColor = "#36DADD"
     @AppStorage("builtInBarColor") private var builtInBarColor = "#36DADD"
     @AppStorage("keyboardBarColor") private var keyboardBarColor = "#36DADD"
@@ -24,8 +25,12 @@ struct QuickPanel: View {
         .padding(18)
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
-        .background(.black.opacity(0.52))
+        .modifier(PanelBackground())
         .preferredColorScheme(.dark)
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: PanelSizeKey.self, value: geometry.size)
+        })
+        .onPreferenceChange(PanelSizeKey.self, perform: onSizeChange)
     }
 
     private var controls: some View {
@@ -410,6 +415,23 @@ struct QuickPanel: View {
         case nil: "Kullanılamıyor"
         }
     }
+}
+
+private struct PanelBackground: ViewModifier {
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular.tint(.black.opacity(0.04)),
+                                in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        } else {
+            content.background(.ultraThinMaterial,
+                               in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        }
+    }
+}
+
+private struct PanelSizeKey: PreferenceKey {
+    static let defaultValue = CGSize.zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
 }
 
 private struct PanelButtonStyle: ViewModifier {

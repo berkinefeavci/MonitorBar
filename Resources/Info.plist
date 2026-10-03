@@ -3,6 +3,8 @@
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>tr</string>
   <key>CFBundleDisplayName</key><string>MonitorBar</string>
+  <key>CFBundleIconFile</key><string>PanelLight</string>
+  <key>CFBundleIconName</key><string>PanelLight</string>
   <key>CFBundleExecutable</key><string>MonitorBar</string>
   <key>CFBundleIdentifier</key><string>com.berkinavci.MonitorBar</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>

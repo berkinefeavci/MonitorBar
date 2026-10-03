@@ -2,10 +2,14 @@
 
 MonitorBar is a macOS menu bar app for external monitor brightness through DDC/CI. It sends hardware commands when the display responds; it does not dim the screen with an overlay. The menu bar icon appears while an external display is connected and disappears when none is connected.
 
+## Download
+
+Download the latest signed and notarized universal app from [GitHub Releases](https://github.com/berkinefeavci/MonitorBar/releases). Unzip it, move `MonitorBar.app` to Applications, and open it. The menu bar icon appears when an external display is connected. The interface is currently in Turkish.
+
 ## Compatibility
 
 - macOS 12 or newer, on Apple Silicon or Intel MacBooks. The build script creates one universal app containing both architectures.
-- Liquid Glass buttons are available only on macOS 26 or newer. Earlier versions use standard macOS buttons; the setting is hidden.
+- The panel uses Liquid Glass on macOS 26 or newer. Earlier versions use a standard macOS material. Liquid Glass buttons are available only on macOS 26 or newer; the setting is hidden on older versions.
 - External hardware brightness and contrast require a compatible monitor, cable or adapter, and macOS DDC/CI transport. The controls are disabled when the monitor does not return a valid response.
 - Built-in display brightness, keyboard backlight, and Night Shift appear only when the Mac exposes working controls. Keyboard backlight color cannot be changed by this app; its color picker changes the slider color.
 - Apple Silicon DDC/CI was verified on a Fazeon X27F166QB. Intel DDC/CI compiles and its protocol tests pass under Rosetta, but has not been tested on Intel hardware. Compatibility with every MacBook or monitor is not established.
@@ -19,7 +23,7 @@ Install Xcode with the macOS SDK and command-line tools. This repository was bui
 open dist/MonitorBar.app
 ```
 
-The script builds both architectures for macOS 12 and ad-hoc signs `dist/MonitorBar.app` for local use. A downloadable GitHub release needs Developer ID signing and Apple notarization for normal Gatekeeper launch.
+The script builds both architectures for macOS 12 and ad-hoc signs `dist/MonitorBar.app` for local use. The app in GitHub Releases is separately Developer ID signed and Apple notarized.
 
 The first slider controls the selected external monitor. The built-in slider controls the Mac display when available. “İki ekranı birlikte ayarla” changes both displays together and follows built-in brightness changes of at least 2 percentage points. The keyboard slider appears only on supported MacBooks. Expand “Diğer kontroller” for contrast and current input information. The input is read only.
 
@@ -53,3 +57,7 @@ Tests cover display-to-DDC matching, value conversion, DDC packets and replies, 
 The DDC approach was informed by [traderGK/OpenDisplay](https://github.com/traderGK/OpenDisplay) (MIT), [AppleSiliconDDC](https://github.com/waydabber/AppleSiliconDDC) (MIT), [ScreenControl](https://github.com/pushbrands/ScreenControl) (MIT), and [aquitaine/OpenDisplay](https://github.com/aquitaine/OpenDisplay) (GPL-3.0-or-later). MonitorBar is a separate source tree and contains no GPL source or assets.
 
 Night Shift behavior was compared with [Luma](https://github.com/heymykro/luma) (MIT). No Luma code was copied.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

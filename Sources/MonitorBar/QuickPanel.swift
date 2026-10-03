@@ -90,13 +90,6 @@ struct QuickPanel: View {
             )
             .padding(.top, 8)
 
-            HStack(spacing: 7) {
-                preset("Gece 25%", value: 25)
-                preset("Çalışma 60%", value: 60)
-                preset("Tam 100%", value: 100)
-            }
-            .padding(.top, 10)
-
             if let builtInDisplay = model.builtInDisplay {
                 Divider().padding(.top, 16)
                 if !model.linkBrightness {
@@ -134,12 +127,6 @@ struct QuickPanel: View {
                 .toggleStyle(.switch)
                 .disabled(!model.canChangeBrightness || !model.canChangeBuiltInBrightness)
                 .padding(.top, 9)
-                Text(model.linkBrightness
-                     ? "Bu çubuk iki ekranı ayarlar. Mac parlaklığı değişince harici ekran takip eder."
-                     : "Mac parlaklığı değişince harici ekran da takip eder.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if model.canChangeKeyboardBrightness {
@@ -172,26 +159,11 @@ struct QuickPanel: View {
                     .font(.system(size: 11))
                     .toggleStyle(.switch)
                     .padding(.top, 7)
-                    Text("Çubuğu değiştirmek de otomatik klavye ışığını kapatır.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                    .help("Açıkken macOS'un otomatik klavye ışığı kapanır.")
                 }
             }
 
-            Divider().padding(.vertical, 17)
-
-            HStack {
-                Text(model.canChangeBrightness ? "Monitörün kendi parlaklığı" : "Donanım kontrolü kullanılamıyor")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("DDC/CI")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .modifier(PanelBadgeStyle(glass: glassButtons))
-            }
+            Divider().padding(.top, 16)
 
             if let message = model.errorMessage ?? model.selectedProbe?.issue {
                 Text(message)
@@ -246,6 +218,11 @@ struct QuickPanel: View {
 
     private var secondaryControls: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                preset("Gece 25%", value: 25)
+                preset("Çalışma 60%", value: 60)
+                preset("Tam 100%", value: 100)
+            }
             if model.canChangeContrast {
                 HStack {
                     Text("Kontrast")
@@ -270,14 +247,16 @@ struct QuickPanel: View {
                 }
                 .foregroundStyle(.secondary)
             }
-            HStack {
-                Text("Giriş")
-                Spacer()
-                Text(inputName(model.selectedProbe?.input))
-                    .foregroundStyle(.secondary)
+            if let input = model.selectedProbe?.input {
+                HStack {
+                    Text("Giriş")
+                    Spacer()
+                    Text(inputName(input))
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 12, weight: .medium))
+                .padding(.top, model.canChangeContrast ? 6 : 0)
             }
-            .font(.system(size: 12, weight: .medium))
-            .padding(.top, model.canChangeContrast ? 6 : 0)
         }
     }
 
@@ -421,14 +400,13 @@ struct QuickPanel: View {
         if let url = URL(string: address) { NSWorkspace.shared.open(url) }
     }
 
-    private func inputName(_ code: UInt16?) -> String {
+    private func inputName(_ code: UInt16) -> String {
         switch code {
         case 0x11: "HDMI 1"
         case 0x12: "HDMI 2"
         case 0x0f: "DisplayPort 1"
         case 0x10: "DisplayPort 2"
-        case .some(let value): String(format: "0x%02X", value)
-        case nil: "Kullanılamıyor"
+        default: String(format: "0x%02X", code)
         }
     }
 }
@@ -462,19 +440,6 @@ private struct PanelButtonStyle: ViewModifier {
     }
 }
 
-private struct PanelBadgeStyle: ViewModifier {
-    let glass: Bool
-
-    @ViewBuilder func body(content: Content) -> some View {
-        if #available(macOS 26, *), glass {
-            content.foregroundStyle(.white.opacity(0.8)).glassEffect(in: .capsule)
-        } else {
-            content.foregroundStyle(.white.opacity(0.8))
-                .background(.white.opacity(0.12), in: Capsule())
-        }
-    }
-}
-
 private struct ColorSlider: View {
     @Binding var value: Double
     let tint: Color
@@ -486,15 +451,14 @@ private struct ColorSlider: View {
             let trackWidth = max(0, geometry.size.width - 20)
             let progress = min(1, max(0, value / 100))
             ZStack(alignment: .leading) {
-                sliderTrack
-                    .frame(width: trackWidth, height: 10)
+                Capsule()
+                    .fill(.white.opacity(0.18))
+                    .frame(width: trackWidth, height: 6)
                     .overlay(alignment: .leading) {
                         Capsule().fill(tint).frame(width: trackWidth * progress, height: 6)
                     }
                     .offset(x: 10)
-                Circle()
-                    .fill(.white)
-                    .frame(width: 20, height: 20)
+                sliderThumb
                     .offset(x: trackWidth * progress)
                 Slider(value: $value, in: 0...100)
                     .opacity(0.01)
@@ -512,11 +476,13 @@ private struct ColorSlider: View {
         .frame(height: 22)
     }
 
-    @ViewBuilder private var sliderTrack: some View {
+    @ViewBuilder private var sliderThumb: some View {
         if #available(macOS 26, *) {
-            Capsule().fill(.white.opacity(0.05)).glassEffect(.regular, in: .capsule)
+            Circle().fill(.white.opacity(0.72))
+                .frame(width: 20, height: 20)
+                .glassEffect(.regular, in: Circle())
         } else {
-            Capsule().fill(.white.opacity(0.12)).background(.ultraThinMaterial, in: Capsule())
+            Circle().fill(.white).frame(width: 20, height: 20)
         }
     }
 }

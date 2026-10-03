@@ -24,8 +24,7 @@ struct QuickPanel: View {
         .padding(18)
         .frame(width: 350)
         .fixedSize(horizontal: false, vertical: true)
-        .background(.black.opacity(0.52), in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.12)))
+        .background(.black.opacity(0.52))
         .preferredColorScheme(.dark)
     }
 

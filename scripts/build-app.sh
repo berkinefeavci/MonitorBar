@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 for arch in arm64 x86_64; do
   swift build -c release --triple "$arch-apple-macosx12.0" --scratch-path ".build/$arch"
 done
-app="$PWD/dist/MonitorBar.app"
+app="$PWD/dist/PanelLight.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 lipo -create .build/arm64/out/Products/Release/MonitorBar \
              .build/x86_64/out/Products/Release/MonitorBar \

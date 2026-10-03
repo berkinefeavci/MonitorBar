@@ -15,7 +15,7 @@ private final class MonitorPanel: NSPanel {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.isVisible = false
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "display", accessibilityDescription: "MonitorBar")
+            button.image = NSImage(systemSymbolName: "display", accessibilityDescription: "PanelLight")
             button.image?.isTemplate = true
             button.target = self
             button.action = #selector(togglePopover)

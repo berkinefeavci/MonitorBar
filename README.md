@@ -23,7 +23,7 @@ The script builds both architectures for macOS 12 and ad-hoc signs `dist/Monitor
 
 The first slider controls the selected external monitor. The built-in slider controls the Mac display when available. “İki ekranı birlikte ayarla” changes both displays together and follows built-in brightness changes of at least 2 percentage points. The keyboard slider appears only on supported MacBooks. Expand “Diğer kontroller” for contrast and current input information. The input is read only.
 
-Open the upper-right **Ayarlar** button to choose each slider color, enable or disable glass buttons on macOS 26+, configure timed brightness, open Night Shift settings, refresh the connection, or quit. These choices stay in the settings screen so the main panel stays compact. On macOS 12, the Night Shift settings link opens the legacy Displays preferences pane.
+Open the upper-right **Ayarlar** button to apply one color to all slider bars or choose each color separately, enable or disable glass buttons on macOS 26+, configure timed brightness, open Night Shift settings, refresh the connection, or quit. These choices stay in the settings screen so the main panel stays compact. On macOS 12, the Night Shift settings link opens the legacy Displays preferences pane.
 
 “Saatle parlaklık” is off by default. Once enabled, it sets the selected external display and built-in display at each configured period change, when the app starts, and after display reconnection. Manual changes remain until the next period change or reconnection. MonitorBar must remain running. “Sıcak ışık şimdi” controls macOS Night Shift while preserving its system schedule.
 

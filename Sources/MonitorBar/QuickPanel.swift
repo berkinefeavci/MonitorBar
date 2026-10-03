@@ -284,6 +284,18 @@ struct QuickPanel: View {
         )
     }
 
+    private var allBarColors: Binding<String> {
+        Binding(
+            get: { externalBarColor },
+            set: { color in
+                externalBarColor = color
+                builtInBarColor = color
+                keyboardBarColor = color
+                contrastBarColor = color
+            }
+        )
+    }
+
     private func scheduleTime(night: Bool) -> Binding<Date> {
         Binding(
             get: {
@@ -314,6 +326,8 @@ struct QuickPanel: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Görünüm")
                     .font(.system(size: 12, weight: .semibold))
+                ColorPicker("Tüm çubuklara uygula", selection: colorBinding(allBarColors), supportsOpacity: false)
+                Divider().padding(.vertical, 2)
                 ColorPicker("Harici ekran çubuğu", selection: colorBinding($externalBarColor), supportsOpacity: false)
                 if model.builtInDisplay != nil {
                     ColorPicker("Yerleşik ekran çubuğu", selection: colorBinding($builtInBarColor), supportsOpacity: false)

@@ -371,6 +371,15 @@ struct QuickPanel: View {
                     .foregroundStyle(.blue)
 
                 Divider().padding(.vertical, 5)
+                Text("Yardım ve güncelleme")
+                    .font(.system(size: 12, weight: .semibold))
+                Link("Hata bildir", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/issues/new?title=Hata%3A%20")!)
+                Link("Öneri gönder", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/issues/new?title=%C3%96neri%3A%20")!)
+                Link("Güncellemeleri denetle", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/releases/latest")!)
+                Text("Bağlantılar tarayıcıda açılır. Tanı verisi otomatik gönderilmez.")
+                    .foregroundStyle(.secondary)
+
+                Divider().padding(.vertical, 5)
                 Text("Bağlantı")
                     .font(.system(size: 12, weight: .semibold))
                 Label(display?.name ?? "Harici ekran", systemImage: "display")

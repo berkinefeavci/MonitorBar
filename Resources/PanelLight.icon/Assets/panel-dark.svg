@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#F9F9F7"/>
+      <stop offset=".55" stop-color="#ECEEF1"/>
+      <stop offset="1" stop-color="#ADC4DE"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(-92 -92) scale(1.18)">
+    <path fill="url(#metal)" fill-rule="evenodd" d="M233 376 C233 340 250 329 277 334 L514 373 C528 376 537 377 549 371 L789 263 C818 250 836 268 836 297 V735 C836 763 818 782 790 769 L548 662 C537 657 528 658 514 660 L277 699 C249 704 233 686 233 650 Z M277 386 C277 375 285 371 298 373 L507 409 C520 411 522 417 522 430 V604 C522 616 517 622 505 625 L299 662 C285 664 277 660 277 647 Z"/>
+    <path d="M826 291 V740" fill="none" stroke="#77A8DF" stroke-opacity=".48" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>

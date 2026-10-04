@@ -4,7 +4,7 @@ PanelLight is a macOS menu bar app for external monitor brightness through DDC/C
 
 ## Download
 
-Download the latest signed and notarized universal app from [GitHub Releases](https://github.com/berkinefeavci/MonitorBar/releases). Unzip it, move `PanelLight.app` to Applications, and open it. The menu bar icon appears when an external display is connected. The interface is currently in Turkish.
+Download the latest signed and notarized universal app from [GitHub Releases](https://github.com/berkinefeavci/PanelLight/releases/latest). Unzip it, move `PanelLight.app` to Applications, and open it. The menu bar icon appears when an external display is connected. The interface is currently in Turkish.
 
 ## Compatibility
 
@@ -13,6 +13,10 @@ Download the latest signed and notarized universal app from [GitHub Releases](ht
 - External hardware brightness and contrast require a compatible monitor, cable or adapter, and macOS DDC/CI transport. The controls are disabled when the monitor does not return a valid response.
 - Built-in display brightness, keyboard backlight, and Night Shift appear only when the Mac exposes working controls. Keyboard backlight color cannot be changed by this app; its color picker changes the slider color.
 - Apple Silicon DDC/CI was verified on a Fazeon X27F166QB. Intel DDC/CI compiles and its protocol tests pass under Rosetta, but has not been tested on Intel hardware. Compatibility with every MacBook or monitor is not established.
+
+## Support and updates
+
+Open **Ayarlar → Hata bildir** or **Öneri gönder** to create a GitHub issue. **Güncellemeleri denetle** opens the latest release; updates are installed manually. No diagnostic data is sent automatically. See [Privacy](PRIVACY.md).
 
 ## Build and run
 

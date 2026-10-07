@@ -2,7 +2,7 @@
 
 Every display on your Mac, one menu bar panel. PanelLight controls the brightness of your MacBook screen, external monitors, an iPad in Sidecar, and the keyboard backlight, each with its own slider, or all together with one.
 
-<p align="center"><img src="docs/images/panel.png" width="350" alt="PanelLight panel with sliders for the built-in display, an external monitor, an iPad, the keyboard backlight and contrast"></p>
+<p align="center"><img src="docs/images/panel.png" width="300" alt="PanelLight panel with sliders for the built-in display, an external monitor, an iPad, the keyboard backlight and contrast"></p>
 
 ## Features
 
@@ -10,7 +10,8 @@ Every display on your Mac, one menu bar panel. PanelLight controls the brightnes
 - **Link.** Turn on **Link** and the rows collapse into a single **All displays** slider. The Mac's brightness keys then move every display together.
 - **Hardware brightness over DDC/CI.** Monitors that support DDC/CI change their real backlight, not a filter.
 - **Software dimming as a fallback.** Sidecar, AirPlay, and monitors that do not answer DDC/CI are dimmed with a click-through overlay, marked **Software** in the panel.
-- **Keyboard backlight, contrast, and Night Shift.** Contrast applies to every monitor that supports it and to the built-in display through a color curve. Night Shift can be switched to warm light from Settings.
+- **Keyboard backlight, contrast, and Night Shift.** Contrast applies to every monitor that supports it and to the built-in display through a color curve. Night Shift switches to warm light from the panel.
+- **Show only what you use.** Hide the keyboard backlight, contrast, Night Shift, or monitor input rows in Settings. Hiding a row does not change the light or setting itself.
 - **Open at login**, custom slider colors, and Liquid Glass on macOS 26.
 - English and Turkish, following your macOS language.
 

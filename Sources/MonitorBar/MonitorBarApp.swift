@@ -24,7 +24,7 @@ private final class MonitorPanel: NSPanel {
             button.target = self
             button.action = #selector(togglePopover)
         }
-        panel = MonitorPanel(contentRect: NSRect(x: 0, y: 0, width: 350, height: 500),
+        panel = MonitorPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 500),
                              styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -62,7 +62,7 @@ private final class MonitorPanel: NSPanel {
         transition += 1
         model.refresh()
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
-        updatePanelSize(panel.contentViewController?.view.fittingSize ?? NSSize(width: 350, height: 500))
+        updatePanelSize(panel.contentViewController?.view.fittingSize ?? NSSize(width: 300, height: 500))
         positionPanel(below: button)
         let target = panel.frame
         if !panel.isVisible {
@@ -107,7 +107,7 @@ private final class MonitorPanel: NSPanel {
 
     private func updatePanelSize(_ size: CGSize) {
         guard size.width > 0, size.height > 0, let panel else { return }
-        let target = NSSize(width: 350, height: size.height)
+        let target = NSSize(width: 300, height: size.height)
         guard panel.contentRect(forFrameRect: panel.frame).size != target else { return }
         panel.setContentSize(target)
         if isOpen, let button = statusItem.button { positionPanel(below: button) }

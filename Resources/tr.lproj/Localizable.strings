@@ -22,8 +22,6 @@
 "Keyboard backlight slider" = "Klavye ışığı çubuğu";
 "Contrast slider" = "Kontrast çubuğu";
 "Glass buttons" = "Cam düğmeler";
-"Display color" = "Ekran rengi";
-"Warm light now" = "Sıcak ışık şimdi";
 "Night Shift settings…" = "Night Shift ayarları…";
 "Help and updates" = "Yardım ve güncelleme";
 "Report a bug" = "Hata bildir";
@@ -47,3 +45,7 @@
 "Open at login could not be changed" = "Girişte açma ayarı değiştirilemedi";
 "Built-in Display" = "Yerleşik ekran";
 "External Display" = "Harici ekran";
+"Show in panel" = "Panelde göster";
+"Monitor inputs" = "Monitör girişleri";
+"Night Shift" = "Night Shift";
+"Hiding a control only removes it from the panel. The light or setting stays as it is." = "Gizlemek yalnızca satırı panelden kaldırır. Işık ya da ayar olduğu gibi kalır.";

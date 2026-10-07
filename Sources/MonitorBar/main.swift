@@ -39,7 +39,7 @@ if CommandLine.arguments.contains("--probe") {
     }
     let model = MonitorModel()
     model.start()
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 386, height: 430),
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 430),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "PanelLight Preview"
     window.isOpaque = false

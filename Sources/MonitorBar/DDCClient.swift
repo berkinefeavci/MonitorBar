@@ -27,14 +27,14 @@ final class DDCClient: @unchecked Sendable {
             let result = displays.map { display -> DDCProbe in
                 guard let index = matched[display.id] else {
                     return DDCProbe(display: display, brightness: nil, contrast: nil, input: nil,
-                                    issue: "DDC/CI bağlantısı bulunamadı")
+                                    issue: "No DDC/CI connection found")
                 }
                 let brightness = Self.read(0x10, index: index)
                 let contrast = Self.read(0x12, index: index)
                 let input = Self.read(0x60, index: index)?.current
                 return DDCProbe(display: display, brightness: brightness, contrast: contrast,
                                 input: input,
-                                issue: brightness == nil ? "Monitör DDC/CI parlaklığına yanıt vermedi" : nil)
+                                issue: brightness == nil ? "The monitor did not answer DDC/CI brightness" : nil)
             }
             DispatchQueue.main.async { completion(result) }
         }

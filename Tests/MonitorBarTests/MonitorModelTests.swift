@@ -30,6 +30,25 @@ final class MonitorModelTests: XCTestCase {
         await MainActor.run { TestRetainer.scheduler = nil }
     }
 
+    func testLiveWritesStartImmediatelyAndCoalesceWhileBusy() async {
+        await MainActor.run {
+            let queue = LatestWriteQueue()
+            TestRetainer.writes = []
+            TestRetainer.finishWrite = nil
+            queue.submit { finish in
+                TestRetainer.writes.append(10)
+                TestRetainer.finishWrite = finish
+            }
+            XCTAssertEqual(TestRetainer.writes, [10])
+            queue.submit { finish in TestRetainer.writes.append(20); finish() }
+            queue.submit { finish in TestRetainer.writes.append(30); finish() }
+            XCTAssertEqual(TestRetainer.writes, [10])
+            TestRetainer.finishWrite?()
+            XCTAssertEqual(TestRetainer.writes, [10, 30])
+            TestRetainer.finishWrite = nil
+        }
+    }
+
     func testWriteRequiresMatchingReadback() {
         XCTAssertEqual(writeOutcome(requested: 52, readback: HardwareLevels(current: 52, maximum: 100)), .verified)
         XCTAssertEqual(writeOutcome(requested: 52, readback: HardwareLevels(current: 58, maximum: 100)), .mismatch)
@@ -40,4 +59,5 @@ final class MonitorModelTests: XCTestCase {
 @MainActor private enum TestRetainer {
     static var scheduler: WriteScheduler?
     static var writes: [Int] = []
+    static var finishWrite: (@MainActor () -> Void)?
 }

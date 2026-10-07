@@ -1,184 +1,157 @@
 import AppKit
 import Combine
 import DDCBridge
+import ServiceManagement
 
 @MainActor final class MonitorModel: ObservableObject {
     @Published private(set) var displays: [DisplayIdentity] = []
     @Published private(set) var probes: [DDCProbe] = []
-    @Published private(set) var selectedID: UInt32?
-    @Published private(set) var brightnessValue = 0.0
+    // External screens without DDC/CI brightness (Sidecar, AirPlay, unresponsive monitors) dimmed by overlay.
+    @Published private(set) var softwareDimmed: Set<UInt32> = []
     @Published private(set) var builtInDisplay: DisplayIdentity?
     @Published private(set) var builtInBrightnessValue: Double?
     @Published private(set) var keyboardBrightnessValue: Double?
-    @Published private(set) var keyboardAutoBrightnessEnabled: Bool?
     @Published private(set) var nightShiftWarm: Bool?
     @Published private(set) var linkBrightness = UserDefaults.standard.bool(forKey: "linkBrightness")
-    @Published private(set) var scheduleEnabled = UserDefaults.standard.bool(forKey: "scheduleEnabled")
-    @Published private(set) var nightStart = UserDefaults.standard.object(forKey: "nightStart") as? Int ?? 22 * 60
-    @Published private(set) var nightEnd = UserDefaults.standard.object(forKey: "nightEnd") as? Int ?? 7 * 60
-    @Published private(set) var nightBrightness = UserDefaults.standard.object(forKey: "nightBrightness") as? Double ?? 35
-    @Published private(set) var dayBrightness = UserDefaults.standard.object(forKey: "dayBrightness") as? Double ?? 70
     @Published private(set) var contrastValue = 0.0
     @Published private(set) var isLoading = false
-    @Published private(set) var isWriting = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var launchAtLogin = false
 
-    var onPresenceChange: ((Bool) -> Void)?
     private let discovery = DisplayDiscovery()
-    private let brightnessScheduler = WriteScheduler()
+    private var brightnessQueues: [UInt32: LatestWriteQueue] = [:]
     private let contrastScheduler = WriteScheduler()
     private let builtInScheduler = WriteScheduler()
     private let keyboardScheduler = WriteScheduler()
+    private let builtInContrast = BuiltInContrastController()
+    private let dimmer = SoftwareDimmer()
     private var generation = 0
-    private var brightnessRequest = 0
+    private var brightnessRequests: [UInt32: Int] = [:]
     private var contrastRequest = 0
     private var builtInRequest = 0
     private var keyboardRequest = 0
     private var keyboardWritePending = false
+    private var builtInWritePending = false
+    private var builtInContrastFailed = false
     private var nightShiftEnabledBeforeOverride: Bool?
-    private var scheduleTimer: Timer?
     private var builtInPollTimer: Timer?
     private var lastMirroredBuiltIn: Double?
-    private var lastAppliedNight: Bool?
 
-    var selectedProbe: DDCProbe? { probes.first { $0.display.id == selectedID } }
-    var canChangeBrightness: Bool { selectedProbe?.brightness != nil && !isLoading }
-    var canChangeContrast: Bool { selectedProbe?.contrast != nil && !isLoading }
+    var canChangeContrast: Bool { !isLoading && probes.contains { $0.contrast != nil } }
     var canChangeBuiltInBrightness: Bool { builtInDisplay != nil && builtInBrightnessValue != nil }
     var canChangeKeyboardBrightness: Bool { keyboardBrightnessValue != nil }
+    var canLinkBrightness: Bool {
+        (canChangeBuiltInBrightness ? 1 : 0) + probes.filter { $0.brightness != nil }.count >= 2
+    }
+
+    // Shown on the single bar while all screens are linked: the Mac's level, or the first screen's.
+    var linkedBrightnessValue: Double? {
+        builtInBrightnessValue ?? probes.first { $0.brightness != nil }?.brightness?.percent
+    }
+
+    func brightness(of id: UInt32) -> Double? {
+        probes.first { $0.display.id == id }?.brightness?.percent
+    }
+
+    func canChangeBrightness(of id: UInt32) -> Bool { !isLoading && brightness(of: id) != nil }
 
     func start() {
-        discovery.onChange = { [weak self] displays in
-            MainActor.assumeIsolated { self?.updateDisplays(displays) }
+        BuiltInContrastController.recoverAfterCrash()
+        if #available(macOS 13, *) { launchAtLogin = SMAppService.mainApp.status == .enabled }
+        discovery.onChange = { [weak self] displays, force in
+            MainActor.assumeIsolated { self?.updateDisplays(displays, force: force) }
         }
         discovery.start()
         pollKeyboardBrightness()
         pollNightShift()
-        scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyScheduleIfNeeded() }
-        }
         builtInPollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollBuiltInBrightness() }
         }
     }
 
     func stop() {
-        brightnessScheduler.cancel()
+        cancelBrightnessWrites()
         contrastScheduler.cancel()
         builtInScheduler.cancel()
         keyboardScheduler.cancel()
-        scheduleTimer?.invalidate()
-        scheduleTimer = nil
+        builtInWritePending = false
+        keyboardWritePending = false
         builtInPollTimer?.invalidate()
         builtInPollTimer = nil
+        builtInContrast.restore()
+        dimmer.removeAll()
         discovery.stop()
     }
 
-    func selectDisplay(_ id: UInt32) {
-        guard displays.contains(where: { $0.id == id }) else { return }
-        brightnessScheduler.cancel()
-        contrastScheduler.cancel()
-        selectedID = id
-        syncValues()
+    @available(macOS 13, *)
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            errorMessage = nil
+        } catch {
+            errorMessage = String(localized: "Open at login could not be changed")
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func refresh() { updateDisplays(DisplayDiscovery.externalDisplays()) }
+    func refresh() { updateDisplays(DisplayDiscovery.externalDisplays(), force: true) }
 
     func setLinkBrightness(_ enabled: Bool) {
         linkBrightness = enabled
         UserDefaults.standard.set(enabled, forKey: "linkBrightness")
         lastMirroredBuiltIn = builtInBrightnessValue
-        if enabled, let builtInBrightnessValue, canChangeBrightness {
-            setExternalBrightness(builtInBrightnessValue)
-        }
+        syncExternalToBuiltIn()
     }
 
-    func setScheduleEnabled(_ enabled: Bool) {
-        scheduleEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: "scheduleEnabled")
-        lastAppliedNight = nil
-        applyScheduleIfNeeded()
-    }
-
-    func setScheduleTime(_ minutes: Int, night: Bool) {
-        let value = min(1439, max(0, minutes))
-        if night {
-            nightStart = value
-            UserDefaults.standard.set(value, forKey: "nightStart")
+    func setBrightness(_ value: Double, of id: UInt32) {
+        if linkBrightness {
+            setAllBrightness(value)
         } else {
-            nightEnd = value
-            UserDefaults.standard.set(value, forKey: "nightEnd")
+            setExternalBrightness(value, of: id)
         }
-        lastAppliedNight = nil
-        applyScheduleIfNeeded()
-    }
-
-    func setScheduleBrightness(_ value: Double, night: Bool) {
-        let level = min(100, max(0, value))
-        if night {
-            nightBrightness = level
-            UserDefaults.standard.set(level, forKey: "nightBrightness")
-        } else {
-            dayBrightness = level
-            UserDefaults.standard.set(level, forKey: "dayBrightness")
-        }
-        lastAppliedNight = nil
-        applyScheduleIfNeeded()
-    }
-
-    func setBrightness(_ value: Double) {
-        setExternalBrightness(value)
-        if linkBrightness { setBuiltInBrightnessOnly(value) }
     }
 
     func setBuiltInBrightness(_ value: Double) {
-        setBuiltInBrightnessOnly(value)
-        if linkBrightness { setExternalBrightness(value) }
+        if linkBrightness {
+            setAllBrightness(value)
+        } else {
+            setBuiltInBrightnessOnly(value)
+            lastMirroredBuiltIn = min(100, max(0, value))
+        }
+    }
+
+    func setAllBrightness(_ value: Double) {
+        if canChangeBuiltInBrightness {
+            setBuiltInBrightnessOnly(value)
+            lastMirroredBuiltIn = min(100, max(0, value))
+        }
+        for probe in probes where probe.brightness != nil {
+            setExternalBrightness(value, of: probe.display.id)
+        }
     }
 
     func setKeyboardBrightness(_ value: Double) {
         guard keyboardBrightnessValue != nil else { return }
         let requested = min(100, max(0, value))
-        if keyboardAutoBrightnessEnabled == true {
-            keyboardAutoBrightnessEnabled = MBSetKeyboardAutoBrightness(false) ? false : true
-        }
         keyboardBrightnessValue = requested
-        errorMessage = keyboardAutoBrightnessEnabled == true ? "Klavye ışığının otomatik ayarı kapatılamadı" : nil
+        errorMessage = nil
         keyboardRequest += 1
         let request = keyboardRequest
         keyboardWritePending = true
-        keyboardScheduler.schedule(after: 0.15) { [weak self] in
+        keyboardScheduler.schedule(after: 0) { [weak self] in
             guard let self, self.keyboardRequest == request else { return }
             var readback: Float = 0
             let target = Float(requested / 100)
             if MBWriteKeyboardBrightness(target), MBReadKeyboardBrightness(&readback) {
                 self.keyboardBrightnessValue = Double(readback) * 100
                 if abs(Double(readback) - Double(target)) > 0.02 {
-                    self.errorMessage = "Klavye ışığı değişikliği doğrulanmadı"
+                    self.errorMessage = String(localized: "Keyboard backlight change was not confirmed")
                 }
             } else {
                 self.keyboardBrightnessValue = nil
-                self.errorMessage = "Klavye ışığı kullanılamıyor"
+                self.errorMessage = String(localized: "Keyboard backlight is unavailable")
             }
             self.keyboardWritePending = false
-        }
-    }
-
-    func setKeyboardBrightnessPinned(_ pinned: Bool) {
-        guard keyboardBrightnessValue != nil else { return }
-        if MBSetKeyboardAutoBrightness(!pinned) {
-            keyboardAutoBrightnessEnabled = !pinned
-            errorMessage = nil
-            if pinned {
-                setKeyboardBrightness(keyboardBrightnessValue ?? 0)
-            } else {
-                keyboardScheduler.cancel()
-                keyboardRequest += 1
-                keyboardWritePending = false
-                pollKeyboardBrightness()
-            }
-        } else {
-            errorMessage = "Klavye ışığının otomatik ayarı değiştirilemedi"
         }
     }
 
@@ -190,7 +163,7 @@ import DDCBridge
         if warm { nightShiftEnabledBeforeOverride = enabled }
         let enabledWhenOff = nightShiftEnabledBeforeOverride ?? (mode != 0 && enabled)
         if !MBSetNightShiftWarm(warm, enabledWhenOff) {
-            errorMessage = "Night Shift değişikliği doğrulanmadı"
+            errorMessage = String(localized: "Night Shift change was not confirmed")
         } else {
             errorMessage = nil
             if !warm { nightShiftEnabledBeforeOverride = nil }
@@ -198,17 +171,27 @@ import DDCBridge
         pollNightShift()
     }
 
-    private func setExternalBrightness(_ value: Double) {
-        guard let probe = selectedProbe, let levels = probe.brightness,
+    private func setExternalBrightness(_ value: Double, of id: UInt32) {
+        guard let probe = probes.first(where: { $0.display.id == id }) else { return }
+        if softwareDimmed.contains(id) {
+            dimmer.set(value, for: id)
+            replaceLevels(softwareLevels(id), vcp: 0x10, displayID: id)
+            return
+        }
+        guard let levels = probe.brightness,
               let raw = rawLevel(percent: value, maximum: levels.maximum) else { return }
-        brightnessValue = value
+        // Show the requested level right away; the monitor's readback replaces it once the write lands.
+        replaceLevels(HardwareLevels(current: raw, maximum: levels.maximum), vcp: 0x10, displayID: id)
         errorMessage = nil
-        isWriting = true
-        brightnessRequest += 1
+        let request = (brightnessRequests[id] ?? 0) + 1
+        brightnessRequests[id] = request
         let token = generation
-        let request = brightnessRequest
-        brightnessScheduler.schedule(after: 0.15) { [weak self] in
-            self?.send(display: probe.display, vcp: 0x10, raw: raw, token: token, request: request)
+        let queue = brightnessQueues[id] ?? LatestWriteQueue()
+        brightnessQueues[id] = queue
+        queue.submit { [weak self] finish in
+            guard let self else { finish(); return }
+            self.send(display: probe.display, vcp: 0x10, raw: raw, token: token,
+                      request: request, finished: finish)
         }
     }
 
@@ -216,9 +199,10 @@ import DDCBridge
         guard let display = builtInDisplay, builtInBrightnessValue != nil else { return }
         let requested = min(100, max(0, value))
         builtInBrightnessValue = requested
+        builtInWritePending = true
         builtInRequest += 1
         let request = builtInRequest
-        builtInScheduler.schedule(after: 0.15) { [weak self] in
+        builtInScheduler.schedule(after: 0) { [weak self] in
             guard let self, self.builtInDisplay?.id == display.id, self.builtInRequest == request else { return }
             let target = Float(requested / 100)
             var readback: Float = 0
@@ -226,36 +210,53 @@ import DDCBridge
                 self.builtInBrightnessValue = Double(readback) * 100
                 self.lastMirroredBuiltIn = Double(readback) * 100
                 if abs(Double(readback) - Double(target)) > 0.02 {
-                    self.errorMessage = "Yerleşik ekran değişikliği doğrulanmadı"
+                    self.errorMessage = String(localized: "Built-in display change was not confirmed")
                 }
             } else {
                 self.builtInBrightnessValue = nil
-                self.errorMessage = "Yerleşik ekran parlaklığı kullanılamıyor"
+                self.errorMessage = String(localized: "Built-in display brightness is unavailable")
             }
+            self.builtInWritePending = false
         }
     }
 
+    // One contrast control for every screen that supports it: monitors over DDC/CI, the Mac via gamma.
     func setContrast(_ value: Double) {
-        guard let probe = selectedProbe, let levels = probe.contrast,
-              let raw = rawLevel(percent: value, maximum: levels.maximum) else { return }
+        let targets = probes.compactMap { probe -> (DisplayIdentity, UInt16)? in
+            guard let levels = probe.contrast,
+                  let raw = rawLevel(percent: value, maximum: levels.maximum) else { return nil }
+            return (probe.display, raw)
+        }
+        guard !targets.isEmpty else { return }
         contrastValue = value
         errorMessage = nil
-        isWriting = true
         contrastRequest += 1
         let token = generation
         let request = contrastRequest
         contrastScheduler.schedule(after: 0.15) { [weak self] in
-            self?.send(display: probe.display, vcp: 0x12, raw: raw, token: token, request: request)
+            guard let self, self.generation == token else { return }
+            self.builtInContrastFailed = self.builtInDisplay.map {
+                !self.builtInContrast.apply(value, to: $0.id)
+            } ?? false
+            for (display, raw) in targets {
+                self.send(display: display, vcp: 0x12, raw: raw, token: token, request: request)
+            }
         }
     }
 
-    private func updateDisplays(_ newDisplays: [DisplayIdentity]) {
+    private func updateDisplays(_ newDisplays: [DisplayIdentity], force: Bool) {
+        dimmer.keep(only: softwareDimmed.intersection(newDisplays.map(\.id)))
+        let nextBuiltInDisplay = DisplayDiscovery.builtInDisplay()
+        if !force && newDisplays == displays && nextBuiltInDisplay?.id == builtInDisplay?.id && !probes.isEmpty {
+            return
+        }
         generation += 1
-        if newDisplays != displays { lastAppliedNight = nil }
-        brightnessScheduler.cancel()
+        cancelBrightnessWrites()
         contrastScheduler.cancel()
         builtInScheduler.cancel()
-        builtInDisplay = DisplayDiscovery.builtInDisplay()
+        builtInWritePending = false
+        if nextBuiltInDisplay?.id != builtInDisplay?.id { builtInContrast.restore() }
+        builtInDisplay = nextBuiltInDisplay
         if let builtInDisplay {
             var level: Float = 0
             builtInBrightnessValue = MBReadBuiltInBrightness(builtInDisplay.id, &level) ? Double(level) * 100 : nil
@@ -265,56 +266,65 @@ import DDCBridge
             lastMirroredBuiltIn = nil
         }
         displays = newDisplays
-        onPresenceChange?(!newDisplays.isEmpty)
         if newDisplays.isEmpty {
-            selectedID = nil
             probes = []
+            softwareDimmed = []
             isLoading = false
-            isWriting = false
-            applyScheduleIfNeeded()
             return
-        }
-        if selectedID == nil || !newDisplays.contains(where: { $0.id == selectedID }) {
-            selectedID = newDisplays[0].id
         }
         probe(newDisplays, token: generation)
     }
 
     private func probe(_ displays: [DisplayIdentity], token: Int) {
         isLoading = true
-        DDCClient.shared.probe(displays: displays) { [weak self] results in
+        DDCClient.shared.probe(displays: displays.filter { !$0.isVirtual }) { [weak self] results in
             Task { @MainActor in
                 guard let self, self.generation == token else { return }
-                self.probes = results
-                self.isLoading = false
-                self.isWriting = false
-                self.syncValues()
-                self.applyScheduleIfNeeded()
-                if self.linkBrightness, !self.scheduleEnabled,
-                   let level = self.builtInBrightnessValue {
-                    self.setExternalBrightness(level)
+                var dimmed = Set<UInt32>()
+                self.probes = displays.map { display in
+                    if let result = results.first(where: { $0.display.id == display.id }),
+                       result.brightness != nil { return result }
+                    dimmed.insert(display.id)
+                    let result = results.first { $0.display.id == display.id }
+                    return DDCProbe(display: display, brightness: self.softwareLevels(display.id),
+                                    contrast: nil, input: result?.input, issue: nil)
                 }
+                self.softwareDimmed = dimmed
+                self.dimmer.keep(only: dimmed)
+                self.isLoading = false
+                self.syncContrast()
+                self.syncExternalToBuiltIn()
             }
         }
     }
 
-    private func send(display: DisplayIdentity, vcp: UInt8, raw: UInt16, token: Int, request: Int) {
-        guard generation == token, selectedID == display.id else { return }
+    private func softwareLevels(_ id: UInt32) -> HardwareLevels {
+        HardwareLevels(current: UInt16((dimmer.level(for: id) * 10).rounded()), maximum: 1000)
+    }
+
+    private func cancelBrightnessWrites() {
+        brightnessQueues.values.forEach { $0.cancel() }
+    }
+
+    private func send(display: DisplayIdentity, vcp: UInt8, raw: UInt16, token: Int,
+                      request: Int, finished: (@MainActor () -> Void)? = nil) {
+        guard generation == token else { finished?(); return }
         DDCClient.shared.write(display: display, vcp: vcp, raw: raw) { [weak self] readback in
             Task { @MainActor in
-                guard let self, self.generation == token, self.selectedID == display.id,
-                      request == (vcp == 0x10 ? self.brightnessRequest : self.contrastRequest) else { return }
-                self.isWriting = false
+                defer { finished?() }
+                guard let self, self.generation == token,
+                      request == (vcp == 0x10 ? self.brightnessRequests[display.id] : self.contrastRequest)
+                else { return }
                 switch writeOutcome(requested: raw, readback: readback) {
                 case .verified:
                     self.replaceLevels(readback, vcp: vcp, displayID: display.id)
-                    self.errorMessage = nil
+                    self.errorMessage = vcp == 0x12 && self.builtInContrastFailed ?
+                        String(localized: "Built-in display contrast could not be applied") : nil
                 case .mismatch:
                     self.replaceLevels(readback, vcp: vcp, displayID: display.id)
-                    self.errorMessage = "Monitör farklı bir değer bildirdi"
+                    self.errorMessage = String(localized: "\(display.name) reported a different value")
                 case .unreadable:
-                    self.syncValues()
-                    self.errorMessage = "Monitör değişikliği doğrulamadı"
+                    self.errorMessage = String(localized: "\(display.name) did not confirm the change")
                     self.probe(self.displays, token: token)
                 }
             }
@@ -328,27 +338,24 @@ import DDCBridge
                                  brightness: vcp == 0x10 ? levels : old.brightness,
                                  contrast: vcp == 0x12 ? levels : old.contrast,
                                  input: old.input, issue: old.issue)
-        syncValues()
+        if vcp == 0x12 { syncContrast() }
     }
 
-    private func syncValues() {
-        brightnessValue = selectedProbe?.brightness?.percent ?? 0
-        contrastValue = selectedProbe?.contrast?.percent ?? 0
+    private func syncContrast() {
+        contrastValue = probes.first { $0.contrast != nil }?.contrast?.percent ?? 0
     }
 
-    private func applyScheduleIfNeeded() {
-        guard scheduleEnabled, !isLoading else { return }
-        let isNight = BrightnessSchedule(nightStart: nightStart, nightEnd: nightEnd).isNight(at: Date())
-        guard lastAppliedNight != isNight else { return }
-        lastAppliedNight = isNight
-        let level = isNight ? nightBrightness : dayBrightness
-        setExternalBrightness(level)
-        setBuiltInBrightnessOnly(level)
+    private func syncExternalToBuiltIn() {
+        guard linkBrightness, let value = builtInBrightnessValue else { return }
+        for probe in probes where probe.brightness != nil {
+            setExternalBrightness(value, of: probe.display.id)
+        }
     }
 
     private func pollBuiltInBrightness() {
         pollKeyboardBrightness()
         pollNightShift()
+        guard !builtInWritePending else { return }
         guard let display = builtInDisplay else { return }
         var raw: Float = 0
         guard MBReadBuiltInBrightness(display.id, &raw) else { return }
@@ -362,7 +369,7 @@ import DDCBridge
             lastMirroredBuiltIn = value
         } else if abs(value - previous) >= 2 {
             lastMirroredBuiltIn = value
-            setExternalBrightness(value)
+            syncExternalToBuiltIn()
         }
     }
 
@@ -370,8 +377,6 @@ import DDCBridge
         guard !keyboardWritePending else { return }
         var raw: Float = 0
         keyboardBrightnessValue = MBReadKeyboardBrightness(&raw) ? Double(raw) * 100 : nil
-        var auto = false
-        keyboardAutoBrightnessEnabled = MBReadKeyboardAutoBrightness(&auto) ? auto : nil
     }
 
     private func pollNightShift() {

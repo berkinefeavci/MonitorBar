@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work on your Mac or display
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did PanelLight do instead?
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model
+      placeholder: MacBook Pro 14" M3 Pro
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PanelLight version
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: textarea
+    id: displays
+    attributes:
+      label: Displays and connection
+      description: Monitor brand and model, and how it is connected (USB-C, HDMI port on the Mac, dock or adapter model, Sidecar, AirPlay).
+      placeholder: Dell U2723QE over USB-C; iPad Air via Sidecar
+    validations:
+      required: true
+  - type: textarea
+    id: probe
+    attributes:
+      label: Probe output (optional)
+      description: Run `/Applications/PanelLight.app/Contents/MacOS/MonitorBar --probe` in Terminal and paste the result.
+      render: text

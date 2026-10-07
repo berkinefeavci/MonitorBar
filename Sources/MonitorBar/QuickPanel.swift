@@ -4,19 +4,12 @@ import SwiftUI
 struct QuickPanel: View {
     @ObservedObject var model: MonitorModel
     var onSizeChange: (CGSize) -> Void = { _ in }
-    @AppStorage("externalBarColor") private var externalBarColor = "#36DADD"
-    @AppStorage("builtInBarColor") private var builtInBarColor = "#36DADD"
-    @AppStorage("keyboardBarColor") private var keyboardBarColor = "#36DADD"
-    @AppStorage("contrastBarColor") private var contrastBarColor = "#36DADD"
+    @AppStorage("externalBarColor") private var externalBarColor = "#3489FC"
+    @AppStorage("builtInBarColor") private var builtInBarColor = "#3489FC"
+    @AppStorage("keyboardBarColor") private var keyboardBarColor = "#3489FC"
+    @AppStorage("contrastBarColor") private var contrastBarColor = "#3489FC"
     @AppStorage("glassButtons") private var glassButtons = true
-    @State private var showDetails = false
     @State private var showSettings = false
-
-    private var display: DisplayIdentity? { model.selectedProbe?.display ?? model.displays.first }
-    private var subtitle: String {
-        guard let display else { return "Harici ekran" }
-        return "\(CGDisplayPixelsWide(display.id)) × \(CGDisplayPixelsHigh(display.id))"
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,183 +26,162 @@ struct QuickPanel: View {
         .onPreferenceChange(PanelSizeKey.self, perform: onSizeChange)
     }
 
+    private var screenCount: Int { model.displays.count + (model.builtInDisplay == nil ? 0 : 1) }
+
     private var controls: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "display")
-                    .font(.system(size: 19, weight: .medium))
+                Image(systemName: "display.2")
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.blue)
                     .frame(width: 38, height: 38)
                     .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 13))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(display?.name ?? "Harici ekran")
+                    Text("Displays")
                         .font(.system(size: 15, weight: .semibold))
-                        .lineLimit(1)
-                    Text(subtitle)
+                    Group {
+                        if screenCount == 1 { Text("1 display connected") }
+                        else { Text("\(screenCount) displays connected") }
+                    }
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
                 Spacer(minLength: 6)
-                Button { showSettings = true } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .frame(width: 30, height: 30)
-                }
-                .modifier(PanelButtonStyle(glass: glassButtons))
-                .clipShape(Circle())
-                .accessibilityLabel("Ayarlar")
-            }
-
-            if model.displays.count > 1 {
-                Picker("Ekran", selection: Binding(
-                    get: { model.selectedID ?? 0 },
-                    set: { model.selectDisplay($0) }
-                )) {
-                    ForEach(model.displays, id: \.id) { item in
-                        Text(item.name).tag(item.id)
+                if model.canLinkBrightness {
+                    HStack(spacing: 8) {
+                        Text("Link")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Toggle("Adjust all together", isOn: Binding(
+                            get: { model.linkBrightness },
+                            set: { model.setLinkBrightness($0) }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityLabel("Adjust all together")
                     }
+                    .help("Control every display with one slider")
                 }
-                .padding(.top, 12)
             }
 
-            HStack(alignment: .firstTextBaseline) {
-                Text(model.linkBrightness && model.canChangeBuiltInBrightness ? "İki ekranın parlaklığı" : "Parlaklık")
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-                Text("\(Int(model.brightnessValue.rounded()))%")
-                    .font(.system(size: 24, weight: .medium))
-                    .monospacedDigit()
-            }
-            .padding(.top, 25)
-
-            brightnessSlider(
-                value: Binding(get: { model.brightnessValue }, set: { model.setBrightness($0) }),
-                enabled: model.canChangeBrightness,
-                label: model.linkBrightness && model.canChangeBuiltInBrightness ? "İki ekranın parlaklığı" : "Monitörün donanım parlaklığı",
-                tint: barColor(externalBarColor)
-            )
-            .padding(.top, 8)
-
-            if let builtInDisplay = model.builtInDisplay {
-                Divider().padding(.top, 16)
-                if !model.linkBrightness {
-                    HStack {
-                        Label(builtInDisplay.name, systemImage: "laptopcomputer")
-                            .lineLimit(1)
-                        Spacer()
-                        Text(model.builtInBrightnessValue.map { "\(Int($0.rounded()))%" } ?? "—")
-                            .monospacedDigit()
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                    .padding(.top, 13)
-                    brightnessSlider(
-                        value: Binding(
-                            get: { model.builtInBrightnessValue ?? 0 },
-                            set: { model.setBuiltInBrightness($0) }
-                        ),
-                        enabled: model.canChangeBuiltInBrightness,
-                        label: "Yerleşik ekran parlaklığı",
-                        tint: barColor(builtInBarColor)
-                    )
-                    .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 14) {
+                if model.linkBrightness && model.canLinkBrightness {
+                    displayRow(title: String(localized: "All displays"), icon: "display.2", badge: nil,
+                               value: { model.linkedBrightnessValue },
+                               enabled: !model.isLoading,
+                               tint: barColor(externalBarColor)) { model.setAllBrightness($0) }
+                } else {
+                if let builtInDisplay = model.builtInDisplay {
+                    displayRow(title: builtInDisplay.name, icon: "laptopcomputer", badge: nil,
+                               value: { model.builtInBrightnessValue },
+                               enabled: model.canChangeBuiltInBrightness,
+                               tint: barColor(builtInBarColor)) { model.setBuiltInBrightness($0) }
                 }
-                HStack {
-                    Text("İki ekranı birlikte ayarla")
-                    Spacer()
-                    Toggle("İki ekranı birlikte ayarla", isOn: Binding(
-                        get: { model.linkBrightness },
-                        set: { model.setLinkBrightness($0) }
-                    ))
-                    .labelsHidden()
-                    .accessibilityLabel("İki ekranı birlikte ayarla")
+                ForEach(model.displays, id: \.id) { item in
+                    displayRow(title: title(item), icon: icon(item),
+                               badge: model.softwareDimmed.contains(item.id) ? String(localized: "Software") : nil,
+                               value: { model.brightness(of: item.id) },
+                               enabled: model.canChangeBrightness(of: item.id),
+                               tint: barColor(externalBarColor)) { model.setBrightness($0, of: item.id) }
                 }
-                .font(.system(size: 12))
-                .toggleStyle(.switch)
-                .disabled(!model.canChangeBrightness || !model.canChangeBuiltInBrightness)
-                .padding(.top, 9)
+                }
             }
+            .padding(.top, 18)
 
             if model.canChangeKeyboardBrightness {
-                Divider().padding(.top, 16)
-                HStack {
-                    Label("Klavye ışığı", systemImage: "keyboard")
-                    Spacer()
-                    Text("\(Int((model.keyboardBrightnessValue ?? 0).rounded()))%")
-                        .monospacedDigit()
-                }
-                .font(.system(size: 12, weight: .medium))
-                .padding(.top, 13)
-                brightnessSlider(
-                    value: Binding(
-                        get: { model.keyboardBrightnessValue ?? 0 },
-                        set: { model.setKeyboardBrightness($0) }
-                    ),
-                    enabled: true,
-                    label: "Klavye ışığı parlaklığı",
-                    tint: barColor(keyboardBarColor),
-                    lowSymbol: "keyboard",
-                    highSymbol: "sun.max.fill"
-                )
-                .padding(.top, 6)
-                if model.keyboardAutoBrightnessEnabled != nil {
-                    Toggle("Klavye ışığını sabit tut", isOn: Binding(
-                        get: { model.keyboardAutoBrightnessEnabled == false },
-                        set: { model.setKeyboardBrightnessPinned($0) }
-                    ))
-                    .font(.system(size: 11))
-                    .toggleStyle(.switch)
-                    .padding(.top, 7)
-                    .help("Açıkken macOS'un otomatik klavye ışığı kapanır.")
-                }
+                Divider().padding(.top, 14)
+                displayRow(title: String(localized: "Keyboard backlight"), icon: "keyboard", badge: nil,
+                           value: { model.keyboardBrightnessValue },
+                           enabled: true,
+                           tint: barColor(keyboardBarColor)) { model.setKeyboardBrightness($0) }
+                    .padding(.top, 13)
             }
 
             Divider().padding(.top, 16)
 
-            if let message = model.errorMessage ?? model.selectedProbe?.issue {
+            if let message = model.errorMessage {
                 Text(message)
                     .font(.system(size: 11))
                     .foregroundStyle(.orange)
                     .padding(.top, 10)
             }
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) { showDetails.toggle() }
-            } label: {
-                HStack {
-                    Text("Diğer kontroller")
+            if model.canChangeContrast || model.probes.contains(where: { $0.input != nil }) {
+                secondaryControls.padding(.top, 13)
+                Divider().padding(.top, 14)
+            }
+
+            Button { showSettings = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12))
+                        .frame(width: 16)
+                    Text("Settings")
                     Spacer()
-                    Image(systemName: "chevron.down")
-                        .rotationEffect(.degrees(showDetails ? 180 : 0))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
                 .font(.system(size: 12, weight: .medium))
                 .padding(.vertical, 9)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.top, 7)
-
-            if showDetails { secondaryControls.padding(.top, 6) }
+            .padding(.top, 5)
         }
     }
 
-    private func preset(_ title: String, value: Double) -> some View {
-        Button(title) { model.setBrightness(value) }
-            .font(.system(size: 11, weight: .medium))
-            .modifier(PanelButtonStyle(glass: glassButtons))
-            .frame(maxWidth: .infinity)
-            .disabled(!model.canChangeBrightness)
-            .accessibilityLabel("Parlaklık \(title)")
+    private func displayRow(title: String, icon: String, badge: String?, value: @escaping () -> Double?,
+                            enabled: Bool, tint: Color,
+                            set: @escaping (Double) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(title)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(.white.opacity(0.08), in: Capsule())
+                }
+                Spacer(minLength: 8)
+                Text(value().map { "\(Int($0.rounded()))%" } ?? "—")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(size: 12, weight: .medium))
+            brightnessSlider(value: Binding(get: { value() ?? 0 }, set: set),
+                             enabled: enabled && value() != nil, label: String(localized: "\(title) brightness"), tint: tint)
+        }
+    }
+
+    private func title(_ display: DisplayIdentity) -> String {
+        guard display.isVirtual else { return display.name }
+        if display.name.localizedCaseInsensitiveContains("Sidecar") { return "iPad" }
+        return display.name.replacingOccurrences(of: " (AirPlay)", with: "")
+    }
+
+    private func icon(_ display: DisplayIdentity) -> String {
+        guard display.isVirtual else { return "display" }
+        return display.name.localizedCaseInsensitiveContains("Sidecar") ? "ipad.landscape" : "airplayvideo"
     }
 
     private func brightnessSlider(value: Binding<Double>, enabled: Bool, label: String,
-                                  tint: Color, lowSymbol: String = "sun.min.fill",
-                                  highSymbol: String = "sun.max.fill") -> some View {
+                                  tint: Color) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: lowSymbol)
+            Image(systemName: "sun.min.fill")
                 .font(.system(size: 11))
                 .frame(width: 16)
             ColorSlider(value: value, tint: tint, enabled: enabled, label: label)
-            Image(systemName: highSymbol)
+                .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32)
+            Image(systemName: "sun.max.fill")
                 .font(.system(size: 16))
                 .frame(width: 16)
         }
@@ -218,14 +190,13 @@ struct QuickPanel: View {
 
     private var secondaryControls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 7) {
-                preset("Gece 25%", value: 25)
-                preset("Çalışma 60%", value: 60)
-                preset("Tam 100%", value: 100)
-            }
             if model.canChangeContrast {
-                HStack {
-                    Text("Kontrast")
+                HStack(spacing: 8) {
+                    Image(systemName: "circle.lefthalf.filled")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+                    Text("Contrast")
                     Spacer()
                     Text("\(Int(model.contrastValue.rounded()))%")
                         .monospacedDigit()
@@ -239,30 +210,30 @@ struct QuickPanel: View {
                     ColorSlider(value: Binding(
                         get: { model.contrastValue },
                         set: { model.setContrast($0) }
-                    ), tint: barColor(contrastBarColor), enabled: true,
-                       label: "Monitör kontrastı")
+                    ), tint: barColor(contrastBarColor), enabled: true, label: String(localized: "Contrast"))
+                    .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32)
                     Image(systemName: "circle.righthalf.filled")
                         .font(.system(size: 16))
                         .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
             }
-            if let input = model.selectedProbe?.input {
+            ForEach(model.probes.filter { $0.input != nil }, id: \.display.id) { probe in
                 HStack {
-                    Text("Giriş")
+                    Text("\(title(probe.display)) input")
+                        .lineLimit(1)
                     Spacer()
-                    Text(inputName(input))
+                    Text(inputName(probe.input ?? 0))
                         .foregroundStyle(.secondary)
                 }
                 .font(.system(size: 12, weight: .medium))
-                .padding(.top, model.canChangeContrast ? 6 : 0)
             }
         }
     }
 
     private func barColor(_ hex: String) -> Color {
         guard hex.count == 7, hex.first == "#",
-              let rgb = UInt32(hex.dropFirst(), radix: 16) else { return .cyan }
+              let rgb = UInt32(hex.dropFirst(), radix: 16) else { return .blue }
         return Color(red: Double((rgb >> 16) & 0xFF) / 255,
                      green: Double((rgb >> 8) & 0xFF) / 255,
                      blue: Double(rgb & 0xFF) / 255)
@@ -295,103 +266,88 @@ struct QuickPanel: View {
         )
     }
 
-    private func scheduleTime(night: Bool) -> Binding<Date> {
-        Binding(
-            get: {
-                let minutes = night ? model.nightStart : model.nightEnd
-                return Calendar.current.date(byAdding: .minute, value: minutes,
-                                             to: Calendar.current.startOfDay(for: Date())) ?? Date()
-            },
-            set: {
-                let hour = Calendar.current.component(.hour, from: $0)
-                let minute = Calendar.current.component(.minute, from: $0)
-                model.setScheduleTime(hour * 60 + minute, night: night)
-            }
-        )
-    }
-
     private var settings: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Button { showSettings = false } label: {
-                    Label("Geri", systemImage: "chevron.left")
+                    Label("Back", systemImage: "chevron.left")
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                Text("Ayarlar")
+                Text("Settings")
                     .font(.system(size: 15, weight: .semibold))
             }
             Divider().padding(.vertical, 12)
             VStack(alignment: .leading, spacing: 10) {
-                Text("Görünüm")
+                if #available(macOS 13, *) {
+                    Text("General")
+                        .font(.system(size: 12, weight: .semibold))
+                    Toggle("Open at login", isOn: Binding(
+                        get: { model.launchAtLogin },
+                        set: { model.setLaunchAtLogin($0) }
+                    ))
+                    Divider().padding(.vertical, 5)
+                }
+                Text("Appearance")
                     .font(.system(size: 12, weight: .semibold))
-                ColorPicker("Tüm çubuklara uygula", selection: colorBinding(allBarColors), supportsOpacity: false)
+                ColorPicker("Apply to all sliders", selection: colorBinding(allBarColors), supportsOpacity: false)
                 Divider().padding(.vertical, 2)
-                ColorPicker("Harici ekran çubuğu", selection: colorBinding($externalBarColor), supportsOpacity: false)
+                ColorPicker("External display slider", selection: colorBinding($externalBarColor), supportsOpacity: false)
                 if model.builtInDisplay != nil {
-                    ColorPicker("Yerleşik ekran çubuğu", selection: colorBinding($builtInBarColor), supportsOpacity: false)
+                    ColorPicker("Built-in display slider", selection: colorBinding($builtInBarColor), supportsOpacity: false)
                 }
                 if model.canChangeKeyboardBrightness {
-                    ColorPicker("Klavye ışığı çubuğu", selection: colorBinding($keyboardBarColor), supportsOpacity: false)
+                    ColorPicker("Keyboard backlight slider", selection: colorBinding($keyboardBarColor), supportsOpacity: false)
                 }
                 if model.canChangeContrast {
-                    ColorPicker("Kontrast çubuğu", selection: colorBinding($contrastBarColor), supportsOpacity: false)
+                    ColorPicker("Contrast slider", selection: colorBinding($contrastBarColor), supportsOpacity: false)
                 }
                 if #available(macOS 26, *) {
-                    Toggle("Cam düğmeler", isOn: $glassButtons)
+                    Toggle("Glass buttons", isOn: $glassButtons)
                 }
 
                 Divider().padding(.vertical, 5)
-                Text("Otomasyon")
+                Text("Display color")
                     .font(.system(size: 12, weight: .semibold))
-                Toggle("Saatle parlaklık", isOn: Binding(
-                    get: { model.scheduleEnabled },
-                    set: { model.setScheduleEnabled($0) }
-                ))
-                if model.scheduleEnabled {
-                    DatePicker("Gece başlar", selection: scheduleTime(night: true), displayedComponents: .hourAndMinute)
-                    Stepper("Gece \(Int(model.nightBrightness))%", value: Binding(
-                        get: { model.nightBrightness },
-                        set: { model.setScheduleBrightness($0, night: true) }
-                    ), in: 0...100, step: 5)
-                    DatePicker("Gündüz başlar", selection: scheduleTime(night: false), displayedComponents: .hourAndMinute)
-                    Stepper("Gündüz \(Int(model.dayBrightness))%", value: Binding(
-                        get: { model.dayBrightness },
-                        set: { model.setScheduleBrightness($0, night: false) }
-                    ), in: 0...100, step: 5)
-                }
                 if let nightShiftWarm = model.nightShiftWarm {
-                    Toggle("Sıcak ışık şimdi", isOn: Binding(
+                    Toggle("Warm light now", isOn: Binding(
                         get: { model.nightShiftWarm ?? nightShiftWarm },
                         set: { model.setNightShiftWarm($0) }
                     ))
                 }
-                Button("Night Shift ayarları…") { openDisplaySettings() }
+                Button("Night Shift settings…") { openDisplaySettings() }
                     .buttonStyle(.plain)
                     .foregroundStyle(.blue)
 
                 Divider().padding(.vertical, 5)
-                Text("Yardım ve güncelleme")
+                Text("Help and updates")
                     .font(.system(size: 12, weight: .semibold))
-                Link("Hata bildir", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/issues/new?title=Hata%3A%20")!)
-                Link("Öneri gönder", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/issues/new?title=%C3%96neri%3A%20")!)
-                Link("Güncellemeleri denetle", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/releases/latest")!)
-                Text("Bağlantılar tarayıcıda açılır. Tanı verisi otomatik gönderilmez.")
+                Link("Report a bug", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/issues/new?template=bug_report.yml")!)
+                Link("Suggest a feature", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/issues/new?template=feature_request.yml")!)
+                Link("Check for updates", destination: URL(string: "https://github.com/berkinefeavci/PanelLight/releases/latest")!)
+                Text("Links open in your browser. No diagnostic data is sent automatically.")
                     .foregroundStyle(.secondary)
 
                 Divider().padding(.vertical, 5)
-                Text("Bağlantı")
+                Text("Connection")
                     .font(.system(size: 12, weight: .semibold))
-                Label(display?.name ?? "Harici ekran", systemImage: "display")
-                Text(model.canChangeBrightness ? "DDC/CI yanıt veriyor." :
-                        "DDC/CI yanıt vermiyor. Monitör ayarını ve bağlantıyı kontrol et.")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(model.displays, id: \.id) { item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(title(item), systemImage: icon(item))
+                            .lineLimit(1)
+                        Text(model.softwareDimmed.contains(item.id) ?
+                                (item.isVirtual ? String(localized: "Dimmed in software; this display has no hardware brightness.") :
+                                    String(localized: "No DDC/CI response, dimmed in software. Check the monitor's DDC/CI setting and cable.")) :
+                                String(localized: "Hardware brightness over DDC/CI."))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 HStack {
-                    Button("Yenile") { model.refresh() }
+                    Button("Refresh") { model.refresh() }
                         .modifier(PanelButtonStyle(glass: glassButtons))
                     Spacer()
-                    Button("Çıkış") { NSApp.terminate(nil) }
+                    Button("Quit") { NSApp.terminate(nil) }
                         .modifier(PanelButtonStyle(glass: glassButtons))
                 }
             }
@@ -454,10 +410,14 @@ private struct ColorSlider: View {
     let tint: Color
     let enabled: Bool
     let label: String
+    @State private var isHovered = false
+    @State private var isDragging = false
+    private let thumbWidth: CGFloat = 34
+    private let thumbHeight: CGFloat = 22
 
     var body: some View {
         GeometryReader { geometry in
-            let trackWidth = max(0, geometry.size.width - 20)
+            let trackWidth = max(0, geometry.size.width - thumbWidth)
             let progress = min(1, max(0, value / 100))
             ZStack(alignment: .leading) {
                 Capsule()
@@ -466,32 +426,43 @@ private struct ColorSlider: View {
                     .overlay(alignment: .leading) {
                         Capsule().fill(tint).frame(width: trackWidth * progress, height: 6)
                     }
-                    .offset(x: 10)
+                    .offset(x: thumbWidth / 2)
                 sliderThumb
                     .offset(x: trackWidth * progress)
+                    .opacity(isHovered || isDragging ? 1 : 0)
                 Slider(value: $value, in: 0...100)
                     .opacity(0.01)
                     .disabled(!enabled)
                     .accessibilityLabel(label)
+                    .onHover { isHovered = $0 }
             }
-            .frame(height: 22)
+            .frame(height: 32)
             .contentShape(Rectangle())
             .highPriorityGesture(DragGesture(minimumDistance: 0).onChanged { gesture in
                 guard enabled, trackWidth > 0 else { return }
-                value = min(100, max(0, (gesture.location.x - 10) / trackWidth * 100))
-            })
+                isDragging = true
+                value = min(100, max(0, (gesture.location.x - thumbWidth / 2) / trackWidth * 100))
+            }.onEnded { _ in isDragging = false })
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
+            .animation(.easeInOut(duration: 0.15), value: isDragging)
             .opacity(enabled ? 1 : 0.45)
         }
-        .frame(height: 22)
+        .frame(height: 32)
     }
 
     @ViewBuilder private var sliderThumb: some View {
         if #available(macOS 26, *) {
-            Circle().fill(.white.opacity(0.72))
-                .frame(width: 20, height: 20)
-                .glassEffect(.regular, in: Circle())
+            Capsule()
+                .fill(.white.opacity(isDragging ? 0.14 : 0.66))
+                .frame(width: thumbWidth, height: thumbHeight)
+                .glassEffect(isDragging ? .clear.interactive() : .identity, in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(isDragging ? 0.22 : 0.35), lineWidth: 0.7))
+                .shadow(color: .black.opacity(0.2), radius: isDragging ? 0 : 4, y: isDragging ? 0 : 3)
         } else {
-            Circle().fill(.white).frame(width: 20, height: 20)
+            Capsule()
+                .fill(.white)
+                .frame(width: thumbWidth, height: thumbHeight)
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 3)
         }
     }
 }

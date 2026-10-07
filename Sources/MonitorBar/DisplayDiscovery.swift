@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 
 final class DisplayDiscovery: @unchecked Sendable {
-    var onChange: (([DisplayIdentity]) -> Void)?
+    var onChange: (([DisplayIdentity], Bool) -> Void)?
     private var wakeObserver: NSObjectProtocol?
 
     func start() {
@@ -11,7 +11,7 @@ final class DisplayDiscovery: @unchecked Sendable {
             forName: NSWorkspace.didWakeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in self?.publish() }
+        ) { [weak self] _ in self?.publish(force: true) }
         publish()
     }
 
@@ -29,7 +29,12 @@ final class DisplayDiscovery: @unchecked Sendable {
         DispatchQueue.main.async { instance.publish() }
     }
 
-    private func publish() { onChange?(Self.externalDisplays()) }
+    private func publish(force: Bool = false) { onChange?(Self.externalDisplays(), force) }
+
+    private static func isVirtualDisplay(vendor: UInt32, name: String) -> Bool {
+        vendor > 0xFFFF || name.localizedCaseInsensitiveContains("AirPlay") ||
+            name.localizedCaseInsensitiveContains("Sidecar")
+    }
 
     static func builtInDisplay() -> DisplayIdentity? {
         var ids = [CGDirectDisplayID](repeating: 0, count: 32)
@@ -38,7 +43,7 @@ final class DisplayDiscovery: @unchecked Sendable {
               let id = ids.prefix(Int(count)).first(where: { CGDisplayIsBuiltin($0) != 0 }) else { return nil }
         let name = NSScreen.screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
-        }?.localizedName ?? "Yerleşik ekran"
+        }?.localizedName ?? String(localized: "Built-in Display")
         return DisplayIdentity(id: id, name: name,
                                vendor: CGDisplayVendorNumber(id),
                                product: CGDisplayModelNumber(id),
@@ -52,11 +57,13 @@ final class DisplayDiscovery: @unchecked Sendable {
         return ids.prefix(Int(count)).filter { CGDisplayIsBuiltin($0) == 0 }.map { id in
             let name = NSScreen.screens.first {
                 ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
-            }?.localizedName ?? "Harici ekran"
+            }?.localizedName ?? String(localized: "External Display")
+            let vendor = CGDisplayVendorNumber(id)
             return DisplayIdentity(id: id, name: name,
-                                   vendor: CGDisplayVendorNumber(id),
+                                   vendor: vendor,
                                    product: CGDisplayModelNumber(id),
-                                   serial: CGDisplaySerialNumber(id))
+                                   serial: CGDisplaySerialNumber(id),
+                                   isVirtual: isVirtualDisplay(vendor: vendor, name: name))
         }
     }
 }

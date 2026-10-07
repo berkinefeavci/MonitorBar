@@ -6,6 +6,7 @@ struct DisplayIdentity: Equatable, Sendable {
     let vendor: UInt32
     let product: UInt32
     let serial: UInt32
+    var isVirtual = false
 }
 
 struct DDCIdentity: Equatable, Sendable {

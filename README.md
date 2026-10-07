@@ -1,60 +1,64 @@
 # PanelLight
 
-PanelLight is a macOS menu bar app for external monitor brightness through DDC/CI. It sends hardware commands when the display responds; it does not dim the screen with an overlay. The menu bar icon appears while an external display is connected and disappears when none is connected.
+Every display on your Mac, one menu bar panel. PanelLight controls the brightness of your MacBook screen, external monitors, an iPad in Sidecar, and the keyboard backlight, each with its own slider, or all together with one.
+
+<p align="center"><img src="docs/images/panel.png" width="350" alt="PanelLight panel with sliders for the built-in display, an external monitor, an iPad, the keyboard backlight and contrast"></p>
+
+## Features
+
+- **One slider per display.** Built-in display, every connected monitor, and Sidecar or AirPlay screens appear as separate rows at the same time. New displays get their own row when they connect.
+- **Link.** Turn on **Link** and the rows collapse into a single **All displays** slider. The Mac's brightness keys then move every display together.
+- **Hardware brightness over DDC/CI.** Monitors that support DDC/CI change their real backlight, not a filter.
+- **Software dimming as a fallback.** Sidecar, AirPlay, and monitors that do not answer DDC/CI are dimmed with a click-through overlay, marked **Software** in the panel.
+- **Keyboard backlight, contrast, and Night Shift.** Contrast applies to every monitor that supports it and to the built-in display through a color curve. Night Shift can be switched to warm light from Settings.
+- **Open at login**, custom slider colors, and Liquid Glass on macOS 26.
+- English and Turkish, following your macOS language.
 
 ## Download
 
-Download the latest signed and notarized universal app from [GitHub Releases](https://github.com/berkinefeavci/PanelLight/releases/latest). Unzip it, move `PanelLight.app` to Applications, and open it. The menu bar icon appears when an external display is connected. The interface is currently in Turkish.
+Download the latest signed and notarized app from [GitHub Releases](https://github.com/berkinefeavci/PanelLight/releases/latest). Unzip it, move `PanelLight.app` to Applications, and open it. The display icon appears in the menu bar.
 
-## Compatibility
+## Requirements and compatibility
 
-- macOS 12 or newer, on Apple Silicon or Intel MacBooks. The build script creates one universal app containing both architectures.
-- The panel uses Liquid Glass on macOS 26 or newer. Earlier versions use a standard macOS material. Liquid Glass buttons are available only on macOS 26 or newer; the setting is hidden on older versions.
-- External hardware brightness and contrast require a compatible monitor, cable or adapter, and macOS DDC/CI transport. The controls are disabled when the monitor does not return a valid response.
-- Built-in display brightness, keyboard backlight, and Night Shift appear only when the Mac exposes working controls. Keyboard backlight color cannot be changed by this app; its color picker changes the slider color.
-- Apple Silicon DDC/CI was verified on a Fazeon X27F166QB. Intel DDC/CI compiles and its protocol tests pass under Rosetta, but has not been tested on Intel hardware. Compatibility with every MacBook or monitor is not established.
+| | |
+|---|---|
+| Mac | Apple Silicon (M1 or newer). Intel Macs are not supported. |
+| macOS | 12 Monterey or newer. **Open at login** needs macOS 13. Liquid Glass needs macOS 26. |
+| Monitor brightness | Monitors with DDC/CI turned on in their own menu, connected over USB-C or DisplayPort. The built-in HDMI port on some Macs, and some docks, adapters, and DisplayLink devices, do not pass DDC/CI; those monitors fall back to software dimming. |
+| iPad / AirPlay | Software dimming only. The iPad's own backlight can be changed only on the iPad. |
 
-## Support and updates
+Tested on a MacBook Pro (Apple Silicon) with a Fazeon X27F166QB monitor over DDC/CI and an iPad in Sidecar. Other Macs and monitors have not been tested yet. If yours does or does not work, please [open an issue](https://github.com/berkinefeavci/PanelLight/issues/new/choose) with your Mac and monitor model. That is how the compatibility list grows.
 
-Open **Ayarlar → Hata bildir** or **Öneri gönder** to create a GitHub issue. **Güncellemeleri denetle** opens the latest release; updates are installed manually. No diagnostic data is sent automatically. See [Privacy](PRIVACY.md).
+## Why it is not on the Mac App Store
 
-## Build and run
+Monitor brightness over DDC/CI, built-in display brightness, the keyboard backlight, and Night Shift are reached through private macOS interfaces that the App Store sandbox does not allow. Tools such as MonitorControl and Lunar are distributed outside the App Store for the same reason. A macOS update can change these interfaces; PanelLight hides a control when it stops responding.
 
-Install Xcode with the macOS SDK and command-line tools. This repository was built with Xcode 27.0.
+## Privacy
+
+PanelLight runs locally and makes no network requests on its own. See [PRIVACY.md](PRIVACY.md).
+
+## Build from source
+
+Requires Xcode with the macOS SDK.
 
 ```bash
 ./scripts/build-app.sh
 open dist/PanelLight.app
 ```
 
-The script builds both architectures for macOS 12 and ad-hoc signs `dist/PanelLight.app` for local use. The app in GitHub Releases is separately Developer ID signed and Apple notarized.
-
-The first slider controls the selected external monitor. When “İki ekranı birlikte ayarla” is on, one slider controls both displays. On macOS 26+, only the slider thumb uses Liquid Glass; earlier versions use a standard thumb. Enabling the link aligns the external display to the Mac's current brightness. When off, a separate built-in slider controls the Mac display. The external display follows built-in brightness changes of at least 2 percentage points while linked. The keyboard slider appears only on supported MacBooks. Moving it turns off macOS automatic keyboard brightness so the chosen level stays fixed. “Klavye ışığını sabit tut” exposes that system setting; turning it off restores automatic adjustment. The setting persists after PanelLight quits, as it does in macOS Keyboard settings. Expand “Diğer kontroller” for brightness presets, contrast, and current input information. The input is read only.
-
-Open the upper-right **Ayarlar** button to apply one color to all slider bars or choose each color separately, enable or disable glass buttons on macOS 26+, configure timed brightness, open Night Shift settings, refresh the connection, or quit. These choices stay in the settings screen so the main panel stays compact. On macOS 12, the Night Shift settings link opens the legacy Displays preferences pane.
-
-“Saatle parlaklık” is off by default. Once enabled, it sets the selected external display and built-in display at each configured period change, when the app starts, and after display reconnection. Manual changes remain until the next period change or reconnection. PanelLight must remain running. “Sıcak ışık şimdi” controls macOS Night Shift while preserving its system schedule.
-
-If no external display is connected, PanelLight stays running with its menu bar icon hidden. Reconnect a display to show it again; use Activity Monitor to quit it while no icon is visible.
-
-## Verification
+The script builds an Apple Silicon app and ad-hoc signs `dist/PanelLight.app` for local use. Release builds are Developer ID signed and notarized by Apple.
 
 ```bash
-swift test --triple arm64-apple-macosx12.0 --scratch-path .build/arm64
-swift build --build-tests --triple x86_64-apple-macosx12.0 --scratch-path .build/x86_64
-arch -x86_64 xcrun xctest .build/x86_64/out/Products/Debug/MonitorBarTests.xctest
-.build/arm64/out/Products/Release/MonitorBar --probe
+swift test
+dist/PanelLight.app/Contents/MacOS/MonitorBar --probe     # prints what PanelLight can read on this Mac
+dist/PanelLight.app/Contents/MacOS/MonitorBar --preview   # opens the panel in a normal window
 ```
 
-Tests cover display-to-DDC matching, value conversion, DDC packets and replies, pending-write cancellation, and overnight schedule boundaries. On the Fazeon X27F166QB, an independent DDC read confirmed brightness changes made by PanelLight and restoration of the prior value. Independent system reads also confirmed built-in display and keyboard backlight changes on the tested MacBook. These checks establish reported values, not measured light output.
+## Notes
 
-## Limits
-
-- Apple Silicon DDC uses the private `IOAVService` interface. Built-in brightness, keyboard backlight, and Night Shift also use private Apple interfaces. A macOS update can change or remove them. The app is not prepared for Mac App Store distribution.
-- Intel DDC uses the IOKit framebuffer I2C interface. Some Macs, adapters, and display links expose no usable I2C bus. Intel hardware testing is still required before claiming Intel monitor support.
-- macOS Control Center does not offer a public third-party continuous brightness slider or a way to extend Apple's Displays slider. PanelLight uses a menu bar panel for continuous control.
-- Input switching, software dimming, automatic launch at login, and interception of keyboard brightness keys are outside this version.
-- Cable disconnect and reconnect were not physically tested during this build. The app listens for macOS display-change and wake events and updates menu bar visibility from the external display list.
+- Percentages are device control values, not measured light output.
+- Contrast on the built-in display uses a gamma curve. PanelLight restores the original curve on exit, and again on the next launch if it ever quits unexpectedly. Other color tools such as Night Shift can replace the curve while PanelLight runs.
+- PanelLight does not take over the brightness keys. With **Link** on, it follows the built-in display when you press them.
 
 ## Source research
 

@@ -37,7 +37,8 @@ import ServiceManagement
     private var builtInPollTimer: Timer?
     private var lastMirroredBuiltIn: Double?
 
-    var canChangeContrast: Bool { !isLoading && probes.contains { $0.contrast != nil } }
+    // Rows stay usable while a refresh re-reads the monitors; only the first probe has nothing to show.
+    var canChangeContrast: Bool { probes.contains { $0.contrast != nil } }
     var canChangeBuiltInBrightness: Bool { builtInDisplay != nil && builtInBrightnessValue != nil }
     var canChangeKeyboardBrightness: Bool { keyboardBrightnessValue != nil }
     var canLinkBrightness: Bool {
@@ -53,7 +54,7 @@ import ServiceManagement
         probes.first { $0.display.id == id }?.brightness?.percent
     }
 
-    func canChangeBrightness(of id: UInt32) -> Bool { !isLoading && brightness(of: id) != nil }
+    func canChangeBrightness(of id: UInt32) -> Bool { brightness(of: id) != nil }
 
     func start() {
         BuiltInContrastController.recoverAfterCrash()
@@ -277,13 +278,24 @@ import ServiceManagement
 
     private func probe(_ displays: [DisplayIdentity], token: Int) {
         isLoading = true
+        let requestsAtStart = brightnessRequests
+        let contrastRequestAtStart = contrastRequest
         DDCClient.shared.probe(displays: displays.filter { !$0.isVirtual }) { [weak self] results in
             Task { @MainActor in
                 guard let self, self.generation == token else { return }
                 var dimmed = Set<UInt32>()
                 self.probes = displays.map { display in
                     if let result = results.first(where: { $0.display.id == display.id }),
-                       result.brightness != nil { return result }
+                       result.brightness != nil {
+                        // A slider moved during the probe: keep its newer value instead of the reading taken before it.
+                        let current = self.probes.first { $0.display.id == display.id }
+                        let brightnessMoved = self.brightnessRequests[display.id] != requestsAtStart[display.id]
+                        let contrastMoved = self.contrastRequest != contrastRequestAtStart
+                        return DDCProbe(display: display,
+                                        brightness: brightnessMoved ? current?.brightness ?? result.brightness : result.brightness,
+                                        contrast: contrastMoved ? current?.contrast ?? result.contrast : result.contrast,
+                                        input: result.input, issue: result.issue)
+                    }
                     dimmed.insert(display.id)
                     let result = results.first { $0.display.id == display.id }
                     return DDCProbe(display: display, brightness: self.softwareLevels(display.id),

@@ -73,7 +73,7 @@ struct QuickPanel: View {
                 if model.linkBrightness && model.canLinkBrightness {
                     sliderRow(title: String(localized: "All displays"), icon: "display.2",
                               value: { model.linkedBrightnessValue },
-                              enabled: !model.isLoading,
+                              enabled: true,
                               tint: barColor(externalBarColor)) { model.setAllBrightness($0) }
                 } else {
                     if let builtInDisplay = model.builtInDisplay {
